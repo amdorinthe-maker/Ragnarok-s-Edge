@@ -3171,7 +3171,8 @@ function drawPlayerSprite(sx, sy) {
       ctx.scale(-1, 1);
       ctx.drawImage(bodyImg, -bodyWidth / 2, -bodyHeight / 2, bodyWidth, bodyHeight);
     } else {
-      ctx.drawImage(bodyImg, drawX - sx + bodyWidth / 2, drawY - sy + bodyHeight / 2, bodyWidth, bodyHeight);
+      ctx.translate(sx, drawY + bodyHeight / 2);
+      ctx.drawImage(bodyImg, -bodyWidth / 2, -bodyHeight / 2, bodyWidth, bodyHeight);
     }
     ctx.restore();
   } else {
