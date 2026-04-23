@@ -39,6 +39,7 @@ const AssetLoader = {
         const assetLists = [
             this.loadCharacterSprites(),
             this.loadEnemySprites(),
+            this.loadNPCSprites(),
             this.loadWeaponSprites(),
             this.loadArmorSprites(),
             this.loadProjectileSprites(),
@@ -167,20 +168,22 @@ const AssetLoader = {
     },
 
     loadEnemySprites() {
-        const enemies = ['draugr', 'wolf', 'boss_golem'];
+        const enemies = ['draugr', 'wolf'];
+        const bosses = ['boss_golem', 'boss_wolf'];
         const assets = [];
 
+        // Load regular enemies
         enemies.forEach(enemy => {
             const key = `enemy_${enemy}`;
             const src = `${this.paths.enemies}${enemy}.svg`;
             assets.push({ type: 'image', key, src });
         });
         
-        // Add boss variants
-        assets.push({ 
-            type: 'image', 
-            key: 'enemy_boss_wolf', 
-            src: `${this.paths.enemies}boss_wolf.svg` 
+        // Load bosses
+        bosses.forEach(boss => {
+            const key = `enemy_${boss}`;
+            const src = `${this.paths.enemies}${boss}.svg`;
+            assets.push({ type: 'image', key, src });
         });
         
         // Add generic enemy shadow
@@ -214,6 +217,32 @@ const AssetLoader = {
             const key = `armor_${armor}`;
             const src = `${this.paths.armor}${armor}.svg`;
             assets.push({ type: 'image', key, src });
+        });
+
+        return assets;
+    },
+
+    loadNPCSprites() {
+        const npcs = [
+            { role: 'Forgekeeper', key: 'npc_forgekeeper' },
+            { role: 'Runespeaker', key: 'npc_runespeaker' },
+            { role: 'Pathfinder', key: 'npc_pathfinder' },
+            { role: 'Lorekeeper', key: 'npc_lorekeeper' },
+            { role: 'Road Merchant', key: 'npc_road_merchant' },
+            { role: 'War-Trainer', key: 'npc_war_trainer' }
+        ];
+        const assets = [];
+
+        npcs.forEach(npc => {
+            const src = `${this.paths.characters}npc_${npc.role.toLowerCase().replace(/\s+/g, '_')}.png`;
+            assets.push({ type: 'image', key: npc.key, src });
+        });
+
+        // Add generic merchant fallback
+        assets.push({ 
+            type: 'image', 
+            key: 'npc_merchant', 
+            src: `${this.paths.characters}npc_merchant.png` 
         });
 
         return assets;

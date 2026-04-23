@@ -3791,6 +3791,53 @@ function drawWorldProp(tx,ty,sx,sy){
   ctx.restore();
 }
 function drawWorldNPCFigure(n,sx,sy){
+  // Try to use sprite-based rendering if assets are loaded
+  if (AssetLoader && AssetLoader.isLoaded) {
+    const npcSpriteKey = `npc_${n.role?.toLowerCase().replace(/\s+/g, '_') || 'merchant'}`;
+    const npcImg = AssetLoader.getImage(npcSpriteKey);
+    const shadowImg = AssetLoader.getImage('enemy_shadow');
+    
+    // Draw shadow
+    if (shadowImg && shadowImg.complete && shadowImg.naturalWidth > 0) {
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(shadowImg, sx - 16, sy + 12, 32, 10);
+      ctx.globalAlpha = 1.0;
+    } else {
+      drawShadow(sx, sy+14, 13, 5, .28);
+    }
+    
+    // Draw NPC sprite if available
+    if (npcImg && npcImg.complete && npcImg.naturalWidth > 0) {
+      ctx.save();
+      let spriteSize = 48;
+      let drawX = sx - spriteSize / 2;
+      let drawY = sy - spriteSize / 2;
+      
+      // Apply effects based on NPC type
+      let scholar = n.icon === '🔮' || n.icon === '📜';
+      let trade = n.icon === '💰' || n.icon === '⚒' || n.icon === 'J';
+      
+      if (scholar) {
+        ctx.shadowColor = '#b9a4ff';
+        ctx.shadowBlur = 12;
+      } else if (trade) {
+        ctx.shadowColor = '#d7b15c';
+        ctx.shadowBlur = 10;
+      }
+      
+      ctx.drawImage(npcImg, drawX, drawY, spriteSize, spriteSize);
+      
+      // Draw merchant glow
+      if ((n.shopItems || []).length > 0) {
+        drawGlow(sx, sy, 22, 'rgb(215,177,92)', 0.09);
+      }
+      
+      ctx.restore();
+      return;
+    }
+  }
+  
+  // Fallback to procedural drawing
   ctx.save();
   drawShadow(sx,sy+14,13,5,.28);
   let robe=n.col||'#7b6232';
