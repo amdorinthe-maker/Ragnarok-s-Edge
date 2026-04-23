@@ -3406,6 +3406,249 @@ function drawEnemySprite(e, sx, sy) {
   ctx.restore();
 }
 
+/**
+ * Draw Projectile with Sprite
+ * @param {Object} p - Projectile object
+ * @param {number} sx - Screen X position
+ * @param {number} sy - Screen Y position
+ */
+function drawProjectileSprite(p, sx, sy) {
+  ctx.save();
+  
+  // Map projectile types to sprite keys
+  const spriteMap = {
+    'arrow': 'projectile_arrow',
+    'axe': 'projectile_axe',
+    'arcane': 'projectile_arcane_orb',
+    'fireball': 'projectile_fireball',
+    'ice': 'projectile_ice_shard',
+    'venom': 'projectile_poison',
+    'ember': 'projectile_fireball',
+    'veil': 'projectile_arcane_orb',
+    'swipe': null, // Handled procedurally
+    'slash': null  // Handled procedurally
+  };
+  
+  const spriteKey = spriteMap[p.type];
+  
+  // Handle special procedural projectiles (swipe, slash)
+  if (!spriteKey) {
+    if (p.type === 'swipe') {
+      let a = p.ang || 0;
+      let dirX = Math.cos(a), dirY = Math.sin(a);
+      let fade = Math.max(0, p.life / (p.maxLife || p.life || 1));
+      let len = (p.swipeLen || 20) * (0.8 + fade * 0.35);
+      let wid = (p.swipeWidth || 6) * (0.75 + fade * 0.35);
+      ctx.globalAlpha = 0.2 + 0.45 * fade;
+      ctx.strokeStyle = p.col;
+      ctx.lineCap = 'round';
+      ctx.lineWidth = wid;
+      ctx.beginPath();
+      ctx.moveTo(sx - dirX * 4, sy - dirY * 4);
+      ctx.lineTo(sx + dirX * len, sy + dirY * len);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.35)';
+      ctx.lineWidth = Math.max(1, wid * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(sx + dirX * 2, sy + dirY * 2);
+      ctx.lineTo(sx + dirX * (len - 2), sy + dirY * (len - 2));
+      ctx.stroke();
+    } else if (p.type === 'slash') {
+      let a = p.ang || 0;
+      let fade = Math.max(0, p.life / 0.15);
+      drawGlow(sx, sy, 24, p.col, 0.05 + 0.08 * fade);
+      ctx.strokeStyle = p.col;
+      ctx.globalAlpha = 0.18 + 0.3 * fade;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 16, a - 0.38, a + 0.38);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.2)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 12, a - 0.3, a + 0.3);
+      ctx.stroke();
+    } else {
+      // Default fallback for unknown types
+      if (p.owner === 'enemy' && (p.bossAffixes?.length || bossActive)) {
+        drawGlow(sx, sy, 16, 'rgb(255,90,90)', 0.12);
+      }
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    return;
+  }
+  
+  // Try to get sprite from AssetLoader
+  let projImg = null;
+  if (AssetLoader && AssetLoader.isLoaded) {
+    projImg = AssetLoader.getImage(spriteKey);
+  }
+  
+  // If sprite available, draw it
+  if (projImg && projImg.complete && projImg.naturalWidth > 0) {
+    let spriteSize = 24;
+    
+    // Flip sprite based on velocity direction
+    ctx.translate(sx, sy);
+    if (p.vx < 0) {
+      ctx.scale(-1, 1);
+    }
+    
+    // Add glow effects based on type
+    if (p.type === 'arcane' || p.type === 'veil') {
+      let bossShot = p.owner === 'enemy' && (p.bossAffixes?.length || bossActive);
+      drawGlow(0, 0, bossShot ? 22 : 18, bossShot ? 'rgb(255,110,110)' : 'rgb(159,140,255)', bossShot ? 0.18 : 0.14);
+      ctx.shadowColor = bossShot ? '#ff6666' : '#c9b8ff';
+      ctx.shadowBlur = bossShot ? 14 : 10;
+    } else if (p.type === 'fireball' || p.type === 'ember') {
+      drawGlow(0, 0, 22, 'rgb(255,122,47)', 0.18);
+      ctx.shadowColor = '#ff7a2f';
+      ctx.shadowBlur = 10;
+    } else if (p.type === 'axe') {
+      drawGlow(0, 0, 16, 'rgb(215,177,92)', 0.08);
+      ctx.shadowColor = '#d7b15c';
+      ctx.shadowBlur = 10;
+    }
+    
+    ctx.drawImage(projImg, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+  } else {
+    // Fallback to procedural drawing
+    if (p.type === 'arrow') {
+      let enemyShot = p.owner === 'enemy';
+      if (enemyShot) {
+        ctx.strokeStyle = 'rgba(255,120,90,.24)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx - p.vx * 1.6, sy - p.vy * 1.6);
+        ctx.lineTo(sx + p.vx * 0.5, sy + p.vy * 0.5);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(255,245,214,.38)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(sx - p.vx * 1.3, sy - p.vy * 1.3);
+      ctx.lineTo(sx + p.vx * 0.8, sy + p.vy * 0.8);
+      ctx.stroke();
+      ctx.strokeStyle = enemyShot ? '#ff9f7a' : '#f1d795';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sx - p.vx * 0.7, sy - p.vy * 0.7);
+      ctx.lineTo(sx + p.vx * 1.6, sy + p.vy * 1.6);
+      ctx.stroke();
+      ctx.strokeStyle = p.col;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + p.vx * 2.8, sy + p.vy * 2.8);
+      ctx.stroke();
+      ctx.fillStyle = enemyShot ? 'rgba(255,170,120,.8)' : 'rgba(255,230,180,.75)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.type === 'axe') {
+      ctx.strokeStyle = 'rgba(215,177,92,.26)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx - p.vx * 1.4, sy - p.vy * 1.4);
+      ctx.lineTo(sx + p.vx * 0.7, sy + p.vy * 0.7);
+      ctx.stroke();
+      drawGlow(sx, sy, 16, 'rgb(215,177,92)', 0.08);
+      ctx.shadowColor = '#d7b15c';
+      ctx.shadowBlur = 10;
+      ctx.font = '13px sans-serif';
+      ctx.fillText('🪓', sx - 6, sy + 5);
+    } else if (p.type === 'arcane') {
+      let bossShot = p.owner === 'enemy' && (p.bossAffixes?.length || bossActive);
+      drawGlow(sx, sy, bossShot ? 22 : 18, bossShot ? 'rgb(255,110,110)' : 'rgb(159,140,255)', bossShot ? 0.18 : 0.14);
+      ctx.fillStyle = 'rgba(255,255,255,.22)';
+      ctx.beginPath();
+      ctx.arc(sx - p.vx * 0.8, sy - p.vy * 0.8, p.sz + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = p.col;
+      ctx.shadowColor = bossShot ? '#ff6666' : '#c9b8ff';
+      ctx.shadowBlur = bossShot ? 14 : 10;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = bossShot ? 'rgba(255,170,170,.55)' : 'rgba(210,195,255,.5)';
+      ctx.lineWidth = bossShot ? 2 : 1.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz + (bossShot ? 4 : 3), 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (p.type === 'venom') {
+      drawGlow(sx, sy, 20, 'rgb(97,211,109)', 0.16);
+      ctx.fillStyle = 'rgba(220,255,220,.2)';
+      ctx.beginPath();
+      ctx.arc(sx - p.vx * 0.7, sy - p.vy * 0.7, p.sz + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(180,255,180,.45)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz + 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(120,255,150,.18)';
+      ctx.beginPath();
+      ctx.arc(sx + p.vx * 0.35, sy + p.vy * 0.35, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.type === 'ember') {
+      drawGlow(sx, sy, 22, 'rgb(255,122,47)', 0.18);
+      ctx.fillStyle = 'rgba(255,245,220,.18)';
+      ctx.beginPath();
+      ctx.arc(sx - p.vx * 0.8, sy - p.vy * 0.8, p.sz, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,200,130,.42)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(sx - p.vx * 0.9, sy - p.vy * 0.9);
+      ctx.lineTo(sx + p.vx * 0.9, sy + p.vy * 0.9);
+      ctx.stroke();
+    } else if (p.type === 'veil') {
+      drawGlow(sx, sy, 22, 'rgb(185,185,255)', 0.15);
+      ctx.strokeStyle = 'rgba(200,210,255,.22)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx - p.vx * 1.1, sy - p.vy * 1.1);
+      ctx.lineTo(sx + p.vx * 0.6, sy + p.vy * 0.6);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      ctx.beginPath();
+      ctx.arc(sx - p.vx * 0.45, sy - p.vy * 0.45, p.sz, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(210,195,255,.4)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      if (p.owner === 'enemy' && (p.bossAffixes?.length || bossActive)) {
+        drawGlow(sx, sy, 16, 'rgb(255,90,90)', 0.12);
+      }
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  ctx.restore();
+}
+
 function nearestLandmark(tx,ty,maxDist=8){
   let best=null,bestD=maxDist+1;
   worldLandmarks.forEach(site=>{
@@ -6690,19 +6933,10 @@ function drawDungeon(){
     if(!dungeonRevealed[ety]?.[etx])return;
     drawEnemyFigure(e,e.x-dCam.x,e.y-dCam.y);
   });
-  // Projectiles
+  // Projectiles - Dungeon
   projectiles.filter(p=>p.isDungeon).forEach(p=>{
-    let sx=p.x-dCam.x,sy=p.y-dCam.y;ctx.save();
-    if(p.type==='axe'){ctx.strokeStyle='rgba(215,177,92,.26)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(sx-p.vx*1.4,sy-p.vy*1.4);ctx.lineTo(sx+p.vx*.7,sy+p.vy*.7);ctx.stroke();drawGlow(sx,sy,16,'rgb(215,177,92)',.08);ctx.shadowColor='#d7b15c';ctx.shadowBlur=10;ctx.font='13px sans-serif';ctx.fillText('🪓',sx-6,sy+5);}
-    else if(p.type==='arcane'){let bossShot=p.owner==='enemy'&&(p.bossAffixes?.length||bossActive);drawGlow(sx,sy,bossShot?22:18,bossShot?'rgb(255,110,110)':'rgb(159,140,255)',bossShot?.18:.14);ctx.fillStyle='rgba(255,255,255,.22)';ctx.beginPath();ctx.arc(sx-p.vx*.8,sy-p.vy*.8,p.sz+1,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.col;ctx.shadowColor=bossShot?'#ff6666':'#c9b8ff';ctx.shadowBlur=bossShot?14:10;ctx.beginPath();ctx.arc(sx,sy,p.sz+1,0,Math.PI*2);ctx.fill();ctx.strokeStyle=bossShot?'rgba(255,170,170,.55)':'rgba(210,195,255,.5)';ctx.lineWidth=bossShot?2:1.5;ctx.beginPath();ctx.arc(sx,sy,p.sz+(bossShot?4:3),0,Math.PI*2);ctx.stroke();}
-    else if(p.type==='venom'){drawGlow(sx,sy,20,'rgb(97,211,109)',.16);ctx.fillStyle='rgba(220,255,220,.2)';ctx.beginPath();ctx.arc(sx-p.vx*.7,sy-p.vy*.7,p.sz+1,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(sx,sy,p.sz+1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(180,255,180,.45)';ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(sx,sy,p.sz+4,0,Math.PI*2);ctx.stroke();ctx.fillStyle='rgba(120,255,150,.18)';ctx.beginPath();ctx.arc(sx+p.vx*.35,sy+p.vy*.35,2.4,0,Math.PI*2);ctx.fill();}
-    else if(p.type==='ember'){drawGlow(sx,sy,22,'rgb(255,122,47)',.18);ctx.fillStyle='rgba(255,245,220,.18)';ctx.beginPath();ctx.arc(sx-p.vx*.8,sy-p.vy*.8,p.sz,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(sx,sy,p.sz+1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(255,200,130,.42)';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(sx-p.vx*.9,sy-p.vy*.9);ctx.lineTo(sx+p.vx*.9,sy+p.vy*.9);ctx.stroke();}
-    else if(p.type==='veil'){drawGlow(sx,sy,22,'rgb(185,185,255)',.15);ctx.strokeStyle='rgba(200,210,255,.22)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(sx-p.vx*1.1,sy-p.vy*1.1);ctx.lineTo(sx+p.vx*.6,sy+p.vy*.6);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.16)';ctx.beginPath();ctx.arc(sx-p.vx*.45,sy-p.vy*.45,p.sz,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(sx,sy,p.sz+1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(210,195,255,.4)';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(sx,sy,p.sz+4,0,Math.PI*2);ctx.stroke();}
-    else if(p.type==='arrow'){let enemyShot=p.owner==='enemy';if(enemyShot){ctx.strokeStyle='rgba(255,120,90,.24)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(sx-p.vx*1.6,sy-p.vy*1.6);ctx.lineTo(sx+p.vx*.5,sy+p.vy*.5);ctx.stroke();}ctx.strokeStyle='rgba(255,245,214,.38)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(sx-p.vx*1.3,sy-p.vy*1.3);ctx.lineTo(sx+p.vx*.8,sy+p.vy*.8);ctx.stroke();ctx.strokeStyle=enemyShot?'#ff9f7a':'#f1d795';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sx-p.vx*.7,sy-p.vy*.7);ctx.lineTo(sx+p.vx*1.6,sy+p.vy*1.6);ctx.stroke();ctx.strokeStyle=p.col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx+p.vx*2.8,sy+p.vy*2.8);ctx.stroke();ctx.fillStyle=enemyShot?'rgba(255,170,120,.8)':'rgba(255,230,180,.75)';ctx.beginPath();ctx.arc(sx,sy,1.8,0,Math.PI*2);ctx.fill();}
-    else if(p.type==='swipe'){let a=p.ang||0,dirX=Math.cos(a),dirY=Math.sin(a),fade=Math.max(0,p.life/(p.maxLife||p.life||1)),len=(p.swipeLen||20)*(0.8+fade*.35),wid=(p.swipeWidth||6)*(0.75+fade*.35);ctx.globalAlpha=.2+.45*fade;ctx.strokeStyle=p.col;ctx.lineCap='round';ctx.lineWidth=wid;ctx.beginPath();ctx.moveTo(sx-dirX*4,sy-dirY*4);ctx.lineTo(sx+dirX*len,sy+dirY*len);ctx.stroke();ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=Math.max(1,wid*.35);ctx.beginPath();ctx.moveTo(sx+dirX*2,sy+dirY*2);ctx.lineTo(sx+dirX*(len-2),sy+dirY*(len-2));ctx.stroke();}
-    else if(p.type==='slash'){let a=p.ang||0,fade=Math.max(0,p.life/.15);drawGlow(sx,sy,24,p.col,.05+.08*fade);ctx.strokeStyle=p.col;ctx.globalAlpha=.18+.3*fade;ctx.lineWidth=6;ctx.beginPath();ctx.arc(sx,sy,16,a-.38,a+.38);ctx.stroke();ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(sx,sy,12,a-.3,a+.3);ctx.stroke();}
-    else{if(p.owner==='enemy'&&(p.bossAffixes?.length||bossActive))drawGlow(sx,sy,16,'rgb(255,90,90)',.12);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(sx,sy,p.sz,0,Math.PI*2);ctx.fill();}
-    ctx.restore();
+    let sx=p.x-dCam.x,sy=p.y-dCam.y;
+    drawProjectileSprite(p, sx, sy);
   });
   // Player
   let psx=dPlayer.x-dCam.x,psy=dPlayer.y-dCam.y;
@@ -6864,15 +7098,8 @@ function drawWorldEntities(){
     drawEnemyFigure(e,sx,sy);
   });
   projectiles.filter(p=>!p.isDungeon).forEach(p=>{
-    let sx=p.x-cam.x,sy=p.y-cam.y;ctx.save();
-    if(p.type==='axe'){ctx.strokeStyle='rgba(215,177,92,.26)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(sx-p.vx*1.4,sy-p.vy*1.4);ctx.lineTo(sx+p.vx*.7,sy+p.vy*.7);ctx.stroke();drawGlow(sx,sy,16,'rgb(215,177,92)',.08);ctx.shadowColor='#d7b15c';ctx.shadowBlur=10;ctx.font='13px sans-serif';ctx.fillText('🪓',sx-6,sy+5);}
-    else if(p.type==='arcane'){let bossShot=p.owner==='enemy'&&(p.bossAffixes?.length||bossActive);drawGlow(sx,sy,bossShot?22:18,bossShot?'rgb(255,110,110)':'rgb(159,140,255)',bossShot?.18:.14);ctx.fillStyle='rgba(255,255,255,.22)';ctx.beginPath();ctx.arc(sx-p.vx*.8,sy-p.vy*.8,p.sz+1,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.col;ctx.shadowColor=bossShot?'#ff6666':'#c9b8ff';ctx.shadowBlur=bossShot?14:10;ctx.beginPath();ctx.arc(sx,sy,p.sz+1,0,Math.PI*2);ctx.fill();ctx.strokeStyle=bossShot?'rgba(255,170,170,.55)':'rgba(210,195,255,.5)';ctx.lineWidth=bossShot?2:1.5;ctx.beginPath();ctx.arc(sx,sy,p.sz+(bossShot?4:3),0,Math.PI*2);ctx.stroke();}
-    else if(p.type==='venom'){drawGlow(sx,sy,20,'rgb(97,211,109)',.16);ctx.fillStyle='rgba(220,255,220,.2)';ctx.beginPath();ctx.arc(sx-p.vx*.7,sy-p.vy*.7,p.sz+1,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(sx,sy,p.sz+1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(180,255,180,.45)';ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(sx,sy,p.sz+4,0,Math.PI*2);ctx.stroke();ctx.fillStyle='rgba(120,255,150,.18)';ctx.beginPath();ctx.arc(sx+p.vx*.35,sy+p.vy*.35,2.4,0,Math.PI*2);ctx.fill();}
-    else if(p.type==='ember'){drawGlow(sx,sy,22,'rgb(255,122,47)',.18);ctx.fillStyle='rgba(255,245,220,.18)';ctx.beginPath();ctx.arc(sx-p.vx*.8,sy-p.vy*.8,p.sz,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(sx,sy,p.sz+1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(255,200,130,.42)';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(sx-p.vx*.9,sy-p.vy*.9);ctx.lineTo(sx+p.vx*.9,sy+p.vy*.9);ctx.stroke();}
-    else if(p.type==='veil'){drawGlow(sx,sy,22,'rgb(185,185,255)',.15);ctx.strokeStyle='rgba(200,210,255,.22)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(sx-p.vx*1.1,sy-p.vy*1.1);ctx.lineTo(sx+p.vx*.6,sy+p.vy*.6);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.16)';ctx.beginPath();ctx.arc(sx-p.vx*.45,sy-p.vy*.45,p.sz,0,Math.PI*2);ctx.fill();ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(sx,sy,p.sz+1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(210,195,255,.4)';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(sx,sy,p.sz+4,0,Math.PI*2);ctx.stroke();}
-    else if(p.type==='arrow'){let enemyShot=p.owner==='enemy';if(enemyShot){ctx.strokeStyle='rgba(255,120,90,.24)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(sx-p.vx*1.6,sy-p.vy*1.6);ctx.lineTo(sx+p.vx*.5,sy+p.vy*.5);ctx.stroke();}ctx.strokeStyle='rgba(255,245,214,.38)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(sx-p.vx*1.3,sy-p.vy*1.3);ctx.lineTo(sx+p.vx*.8,sy+p.vy*.8);ctx.stroke();ctx.strokeStyle=enemyShot?'#ff9f7a':'#f1d795';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sx-p.vx*.7,sy-p.vy*.7);ctx.lineTo(sx+p.vx*1.6,sy+p.vy*1.6);ctx.stroke();ctx.strokeStyle=p.col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx+p.vx*2.8,sy+p.vy*2.8);ctx.stroke();ctx.fillStyle=enemyShot?'rgba(255,170,120,.8)':'rgba(255,230,180,.75)';ctx.beginPath();ctx.arc(sx,sy,1.8,0,Math.PI*2);ctx.fill();}
-    else if(p.type==='slash'){let a=p.ang||0,fade=Math.max(0,p.life/.15);drawGlow(sx,sy,24,p.col,.05+.08*fade);ctx.strokeStyle=p.col;ctx.globalAlpha=.18+.3*fade;ctx.lineWidth=6;ctx.beginPath();ctx.arc(sx,sy,16,a-.38,a+.38);ctx.stroke();ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(sx,sy,12,a-.3,a+.3);ctx.stroke();}
-    else{if(p.owner==='enemy'&&(p.bossAffixes?.length||bossActive))drawGlow(sx,sy,16,'rgb(255,90,90)',.12);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(sx,sy,p.sz,0,Math.PI*2);ctx.fill();}ctx.restore();
+    let sx=p.x-cam.x,sy=p.y-cam.y;
+    drawProjectileSprite(p, sx, sy);
   });
   let sx=P.x-cam.x,sy=P.y-cam.y;
   if(!(P.blink>0&&Math.floor(Date.now()/90)%2===0)){

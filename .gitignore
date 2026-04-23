@@ -1,1 +1,1 @@
-(js/game.js is just a source file modification, no build artifacts, dependencies, or temp files detected in the changes, so no need for any gitignore rules)
+(js/core/assets.js, js/game.js)
