@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Asset Loader Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #eee; }
+        #status { margin: 20px 0; padding: 10px; background: #16213e; border-radius: 5px; }
+        .progress { height: 20px; background: #0f3460; border-radius: 10px; overflow: hidden; margin: 10px 0; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #e94560, #ff6b6b); transition: width 0.3s; }
+        .asset-item { padding: 5px; margin: 2px 0; background: rgba(0,0,0,0.3); }
+        .loaded { color: #4ade80; }
+        .failed { color: #f87171; }
+    </style>
+</head>
+<body>
+    <h1>🎮 Asset Loader Test</h1>
+    <div id="status">Initializing...</div>
+    <div class="progress"><div class="progress-bar" id="progress" style="width: 0%"></div></div>
+    <div id="assets"></div>
+
+    <script src="js/core/assets.js"></script>
+    <script>
+        const statusEl = document.getElementById('status');
+        const progressEl = document.getElementById('progress');
+        const assetsEl = document.getElementById('assets');
+        
+        AssetLoader.init(() => {
+            statusEl.innerHTML = '✅ All assets loaded!';
+            statusEl.className = 'loaded';
+            
+            // Display results
+            let html = '<h2>Loaded Assets:</h2>';
+            Object.keys(AssetLoader.images).forEach(key => {
+                const img = AssetLoader.images[key];
+                const status = img.complete && img.naturalWidth > 0 ? '✓' : '✗';
+                const cls = img.complete && img.naturalWidth > 0 ? 'loaded' : 'failed';
+                html += `<div class="asset-item ${cls}">${status} ${key} (${img.width}x${img.height})</div>`;
+            });
+            
+            Object.keys(AssetLoader.audio).forEach(key => {
+                html += `<div class="asset-item">🎵 ${key}</div>`;
+            });
+            
+            assetsEl.innerHTML = html;
+        });
+        
+        // Update progress
+        setInterval(() => {
+            const pct = Math.round(AssetLoader.getProgress() * 100);
+            progressEl.style.width = pct + '%';
+            statusEl.textContent = `Loading... ${pct}% (${AssetLoader.loadedCount}/${AssetLoader.totalAssets})`;
+        }, 100);
+    </script>
+</body>
+</html>

@@ -163,22 +163,17 @@ function drawPlayerSprite(sx, sy) {
 }
 
 async function initSpriteAssets() {
-  const assets = {
-    'berserker_body': 'assets/characters/berserker_body.png',
-    'ranger_body':    'assets/characters/ranger_body.png',
-    'runecaster_body':'assets/characters/runecaster_body.png',
-    'guardian_body':  'assets/characters/guardian_body.png',
-    'berserker_shadow': 'assets/characters/berserker_shadow.png',
-    'ranger_shadow':    'assets/characters/ranger_shadow.png',
-    'runecaster_shadow':'assets/characters/runecaster_shadow.png',
-    'guardian_shadow':  'assets/characters/guardian_shadow.png',
-    'weapon_axe_basic': 'assets/weapons/axe_basic.png',
-    'weapon_bow_basic': 'assets/weapons/bow_basic.png',
-    'weapon_staff_basic': 'assets/weapons/staff_basic.png',
-    'weapon_sword_basic': 'assets/weapons/sword_basic.png'
-  };
-
-  console.log('📦 Loading sprites...');
-  await SpriteSystem.loadAll(assets);
-  console.log('✅ Sprites ready.');
+  // Use AssetLoader for loading all assets
+  return new Promise((resolve) => {
+    console.log('📦 Loading sprites via AssetLoader...');
+    
+    AssetLoader.init(() => {
+      // Transfer loaded images to SpriteSystem cache
+      Object.entries(AssetLoader.images).forEach(([key, img]) => {
+        SpriteSystem.cache[key] = img;
+      });
+      console.log('✅ Sprites ready.');
+      resolve();
+    });
+  });
 }
