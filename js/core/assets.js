@@ -220,13 +220,18 @@ const AssetLoader = {
     },
 
     loadProjectileSprites() {
-        const projectiles = ['arrow', 'fireball', 'ice_shard', 'axe', 'arcane_orb'];
+        const projectiles = [
+            { name: 'arrow', key: 'projectile_arrow' },
+            { name: 'fireball', key: 'projectile_fireball' },
+            { name: 'ice_shard', key: 'projectile_ice_shard' },
+            { name: 'axe', key: 'projectile_axe' },
+            { name: 'arcane_orb', key: 'projectile_arcane_orb' }
+        ];
         const assets = [];
 
         projectiles.forEach(proj => {
-            const key = `proj_${proj}`;
-            const src = `${this.paths.projectiles}${proj}.svg`;
-            assets.push({ type: 'image', key, src });
+            const src = `${this.paths.projectiles}${proj.name}.svg`;
+            assets.push({ type: 'image', key: proj.key, src });
         });
 
         return assets;
