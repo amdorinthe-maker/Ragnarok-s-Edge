@@ -29,15 +29,7 @@
     <div class="sk" onclick="useSkill(3)">🔥<span class="sk-key">4</span><div class="sk-cd" id="cd3" style="display:none"></div></div>
     <div class="sk" onclick="usePotion()" style="border-color:#ff4488">🧪<span class="sk-key">Q</span><span class="sk-count" id="potion-count">0</span></div>
   </div>
-  <div id="hud-top">
-    <div id="lvl">LV 1</div>
-    <div id="bar-block">
-      <div class="brow"><span class="blbl">HP</span><div class="bbg"><div class="bfill" id="hpf" style="width:100%"></div></div></div>
-      <div class="brow"><span class="blbl">MP</span><div class="bbg"><div class="bfill" id="mpf" style="width:100%"></div></div></div>
-      <div class="brow"><span class="blbl">XP</span><div class="bbg"><div class="bfill" id="xpf" style="width:0%"></div></div></div>
-      <div class="brow"><span class="blbl" style="color:#22cc44;font-size:11px">RUN</span><div class="bbg"><div class="bfill" id="stf" style="width: 100%; background: linear-gradient(90deg, rgb(0, 85, 0), rgb(34, 204, 68));"></div></div></div>
-    </div>
-  </div><div id="gold">💰 0g | Ranger | [I] Bag [F] Interact [Q] Potion(0) [Shift] Sprint [P] Pause [M] Audio</div>
+  <div id="gold">💰 0g | Ranger | [I] Bag [F] Interact [Q] Potion(0) [Shift] Sprint [P] Pause [M] Audio</div>
   <div id="audio-hud">
     <button class="audio-btn" id="audio-mute-btn" onclick="toggleAudioMute()">SFX On</button>
     <label class="audio-group">Master <input id="audio-master" type="range" min="0" max="100" value="70" oninput="setAudioMaster(this.value)"></label>
@@ -221,8 +213,9 @@
   </div>
 
 <!-- Scripts Load Order Matters -->
+<script src="js/core/assets.js"></script>
 <script src="js/systems/sprite-loader.js"></script>
-<script src="js/game.js"></script> <!-- This connects to your new JS file -->
+<script src="js/game.js"></script>
 
 <script>
 // Initialize sprites after game loads
