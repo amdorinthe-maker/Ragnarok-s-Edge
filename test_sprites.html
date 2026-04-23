@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ragnarok's Edge - Sprite Test</title>
+    <style>
+        body { margin: 0; background: #0a0a0a; color: #fff; font-family: sans-serif; }
+        #test-container { padding: 20px; }
+        .sprite-test { display: inline-block; margin: 10px; text-align: center; }
+        .sprite-test canvas { border: 1px solid #333; background: #1a1a2e; }
+        .sprite-test label { display: block; margin-top: 5px; font-size: 12px; color: #aaa; }
+        #status { position: fixed; top: 10px; right: 10px; padding: 10px; background: rgba(0,0,0,0.8); border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <h1>🎮 Sprite Rendering Test</h1>
+        <div id="status">Loading...</div>
+        <div id="sprite-tests"></div>
+    </div>
+
+    <script src="js/core/assets.js"></script>
+    <script>
+        const status = document.getElementById('status');
+        const container = document.getElementById('sprite-tests');
+        
+        AssetLoader.init(() => {
+            status.innerHTML = '✅ All assets loaded!';
+            status.style.background = 'rgba(0,100,0,0.8)';
+            
+            // Test character sprites
+            const classes = ['berserker', 'ranger', 'runecaster', 'guardian'];
+            classes.forEach(cls => {
+                testSprite(`${cls}_body`, `${cls} Body`);
+            });
+            
+            // Test enemy sprites
+            const enemies = ['draugr', 'wolf', 'boss_golem'];
+            enemies.forEach(enemy => {
+                testSprite(`enemy_${enemy}`, `Enemy: ${enemy}`);
+            });
+            
+            // Test weapon sprites
+            const weapons = ['axe_basic', 'bow_basic', 'staff_basic', 'sword_basic'];
+            weapons.forEach(weapon => {
+                testSprite(`weapon_${weapon}`, `Weapon: ${weapon}`);
+            });
+            
+            // Test projectile sprites
+            const projectiles = ['arrow', 'axe', 'arcane_orb'];
+            projectiles.forEach(proj => {
+                testSprite(`proj_${proj}`, `Projectile: ${proj}`);
+            });
+        });
+        
+        function testSprite(key, label) {
+            const img = AssetLoader.getImage(key);
+            if (!img) return;
+            
+            const div = document.createElement('div');
+            div.className = 'sprite-test';
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            
+            if (img.complete && img.naturalWidth > 0) {
+                ctx.drawImage(img, 0, 0, 64, 64);
+                div.appendChild(canvas);
+            } else {
+                ctx.fillStyle = '#333';
+                ctx.fillRect(0, 0, 64, 64);
+                ctx.fillStyle = '#f00';
+                ctx.font = '10px sans-serif';
+                ctx.fillText('Not Loaded', 5, 35);
+                div.appendChild(canvas);
+            }
+            
+            const lbl = document.createElement('label');
+            lbl.textContent = label;
+            div.appendChild(lbl);
+            
+            container.appendChild(div);
+        }
+    </script>
+</body>
+</html>

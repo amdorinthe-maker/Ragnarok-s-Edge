@@ -2042,6 +2042,13 @@ function drawLootSprite(l,sx,sy){
   ctx.restore();
 }
 function drawEnemyFigure(e,sx,sy){
+  // Use sprite-based rendering if assets are loaded
+  if (AssetLoader && AssetLoader.isLoaded) {
+    drawEnemySprite(e, sx, sy);
+    return;
+  }
+  
+  // Fallback to old procedural method if assets not loaded
   ctx.save();
   let hitAmt=Math.max(0,Math.min(1,(e.hitFlash||0)/220));
   sx+=(e.hitKickX||0);
@@ -3107,6 +3114,297 @@ function drawPlayerFigure(sx,sy){
   }
   ctx.restore();
 }
+
+/**
+ * Draw player using sprite assets instead of procedural drawing
+ * Uses AssetLoader images for body, weapons, armor, and VFX
+ */
+function drawPlayerSprite(sx, sy) {
+  if (!AssetLoader || !AssetLoader.isLoaded) {
+    // Fallback to old method if assets not loaded
+    drawPlayerFigure(sx, sy);
+    return;
+  }
+  
+  let classId = P.classId || 'berserker';
+  let ws = getWeaponStyle();
+  let fx = P.facing.x || 1;
+  let fy = P.facing.y || 0;
+  let aimAng = Math.atan2(fy, fx);
+  let side = fx >= 0 ? 1 : -1;
+  let attackPose = Math.min(1, (P.attackPoseTimer || 0) / 170);
+  let attackEase = 1 - Math.pow(1 - attackPose, 2);
+  let moving = !!(keys['w'] || keys['ArrowUp'] || keys['s'] || keys['ArrowDown'] || keys['a'] || keys['ArrowLeft'] || keys['d'] || keys['ArrowRight']);
+  let runFactor = P.sprinting ? 1.5 : 1;
+  let gaitTime = Date.now() / (moving ? (P.sprinting ? 85 : 130) : 320);
+  let stride = moving ? Math.sin(gaitTime) * 4 * runFactor : 0;
+  let bob = moving ? Math.abs(Math.cos(gaitTime * 2)) * 1.8 * runFactor : 0;
+  
+  sy += bob;
+  
+  ctx.save();
+  
+  // Draw shadow
+  let shadowKey = `${classId}_shadow`;
+  let shadowImg = AssetLoader.getImage(shadowKey);
+  if (shadowImg && shadowImg.complete && shadowImg.naturalWidth > 0) {
+    ctx.globalAlpha = 0.35;
+    ctx.drawImage(shadowImg, sx - 16, sy + 12, 32, 10);
+    ctx.globalAlpha = 1.0;
+  } else {
+    drawShadow(sx + fx * 3, sy + 15, 14, 5, 0.3);
+  }
+  
+  // Draw character body
+  let bodyKey = `${classId}_body`;
+  let bodyImg = AssetLoader.getImage(bodyKey);
+  if (bodyImg && bodyImg.complete && bodyImg.naturalWidth > 0) {
+    let bodyHeight = 48;
+    let bodyWidth = 32;
+    let drawX = sx - bodyWidth / 2 + fx * (attackEase * 5);
+    let drawY = sy - bodyHeight + 10;
+    
+    // Flip sprite if facing left
+    ctx.save();
+    if (fx < 0) {
+      ctx.translate(sx, drawY + bodyHeight / 2);
+      ctx.scale(-1, 1);
+      ctx.drawImage(bodyImg, -bodyWidth / 2, -bodyHeight / 2, bodyWidth, bodyHeight);
+    } else {
+      ctx.drawImage(bodyImg, drawX - sx + bodyWidth / 2, drawY - sy + bodyHeight / 2, bodyWidth, bodyHeight);
+    }
+    ctx.restore();
+  } else {
+    // Fallback to procedural drawing
+    drawPlayerFigure(sx, sy);
+    ctx.restore();
+    return;
+  }
+  
+  // Draw weapon
+  let weaponKey = `weapon_${ws.id}`;
+  let weaponImg = AssetLoader.getImage(weaponKey);
+  if (weaponImg && weaponImg.complete && weaponImg.naturalWidth > 0) {
+    let isMelee = ws.id !== 'bow' && ws.id !== 'arcane';
+    let ang = aimAng + (isMelee ? (side > 0 ? 0.92 : Math.PI - 0.92) : aimAng);
+    ang += (Math.PI / 4 + (Math.PI / 4 - Math.PI / 4) * attackEase) * (isMelee ? 1 : 0);
+    
+    let armReach = isMelee ? 7 + 9 * attackEase : 9 + 5 * attackEase;
+    let handX = sx + Math.cos(ang) * armReach;
+    let handY = sy + Math.sin(ang) * armReach;
+    
+    ctx.save();
+    ctx.translate(handX, handY);
+    ctx.rotate(ang);
+    
+    let weaponSize = 24;
+    if (fx < 0) {
+      ctx.scale(-1, 1);
+    }
+    
+    if (ws.id === 'bow') {
+      ctx.drawImage(weaponImg, -weaponSize / 2, -weaponSize / 2, weaponSize, weaponSize);
+    } else if (ws.id === 'arcane') {
+      ctx.drawImage(weaponImg, -weaponSize / 2, -weaponSize / 2, weaponSize, weaponSize);
+      // Add arcane glow
+      if (P.rage || P.classId === 'runecaster') {
+        drawGlow(handX + Math.cos(ang) * 16, handY + Math.sin(ang) * 16, 10, 'rgb(159,140,255)', 0.15);
+      }
+    } else {
+      // Melee weapons - adjust position based on attack pose
+      let offset = isMelee && attackPose > 0.5 ? 8 : 0;
+      ctx.drawImage(weaponImg, offset - weaponSize / 2, -weaponSize / 2, weaponSize, weaponSize);
+    }
+    
+    ctx.restore();
+  }
+  
+  // Draw armor overlay if equipped
+  if (P.equip && P.equip.chest) {
+    let armorKey = `armor_${P.equip.chest}`;
+    let armorImg = AssetLoader.getImage(armorKey);
+    if (armorImg && armorImg.complete && armorImg.naturalWidth > 0) {
+      let armorHeight = 48;
+      let armorWidth = 32;
+      let drawX = sx - armorWidth / 2 + fx * (attackEase * 5);
+      let drawY = sy - armorHeight + 10;
+      
+      ctx.globalAlpha = 0.7;
+      ctx.drawImage(armorImg, drawX, drawY, armorWidth, armorHeight);
+      ctx.globalAlpha = 1.0;
+    }
+  }
+  
+  // Draw VFX for special states
+  if (P.rage && P.classId === 'berserker') {
+    let vfxKey = 'vfx_rage_berserker';
+    let vfxImg = AssetLoader.getImage(vfxKey);
+    if (vfxImg && vfxImg.complete && vfxImg.naturalWidth > 0) {
+      let vfxSize = 64;
+      let pulse = Math.sin(Date.now() / 100) * 0.1 + 0.9;
+      ctx.globalAlpha = 0.6 * pulse;
+      ctx.drawImage(vfxImg, sx - vfxSize / 2, sy - vfxSize / 2, vfxSize, vfxSize);
+      ctx.globalAlpha = 1.0;
+    } else {
+      drawGlow(sx, sy, 44, 'rgb(216,108,47)', 0.18);
+    }
+  }
+  
+  if (P.classId === 'runecaster') {
+    let vfxKey = 'vfx_rune_aura';
+    let vfxImg = AssetLoader.getImage(vfxKey);
+    if (vfxImg && vfxImg.complete && vfxImg.naturalWidth > 0) {
+      let vfxSize = 56;
+      let rotation = Date.now() / 1000;
+      ctx.save();
+      ctx.translate(sx, sy - 20);
+      ctx.rotate(rotation);
+      ctx.globalAlpha = 0.4;
+      ctx.drawImage(vfxImg, -vfxSize / 2, -vfxSize / 2, vfxSize, vfxSize);
+      ctx.globalAlpha = 1.0;
+      ctx.restore();
+    } else {
+      drawGlow(sx, sy - 8, 16, 'rgb(159,140,255)', 0.07);
+    }
+  }
+  
+  // Draw poison debuff effect
+  if (P.debuffs && P.debuffs.poison > 0) {
+    drawGlow(sx, sy, 34, 'rgb(97,211,109)', 0.12);
+  }
+  
+  ctx.restore();
+}
+
+function drawEnemySprite(e, sx, sy) {
+  if (!AssetLoader || !AssetLoader.isLoaded) {
+    drawEnemyFigure(sx, sy);
+    return;
+  }
+  
+  ctx.save();
+  let hitAmt = Math.max(0, Math.min(1, (e.hitFlash || 0) / 220));
+  sx += (e.hitKickX || 0);
+  sy += (e.hitKickY || 0);
+  let frozen = e.froze > 0;
+  let elite = e.isElite;
+  let boss = e === bossRef;
+  let stepSeed = (e.id || 1) * 0.37;
+  let walkPhase = Date.now() / (boss ? 180 : 140) + stepSeed;
+  let stride = Math.sin(walkPhase) * (boss ? 4.5 : 3.2);
+  let bob = Math.cos(walkPhase * 2) * (boss ? 1.8 : 1.1);
+  let toPlayerX = ((inDungeon ? dPlayer.x : P.x) - e.x) || 1;
+  let facing = toPlayerX >= 0 ? 1 : -1;
+  sy += bob;
+  
+  let name = (e.name || '').toLowerCase();
+  let spriteKey = '';
+  
+  // Determine sprite key based on enemy type
+  if (name.includes('wolf') || name.includes('fenrir')) {
+    spriteKey = boss ? 'enemy_boss_wolf' : 'enemy_wolf';
+  } else if (name.includes('draugr')) {
+    spriteKey = 'enemy_draugr';
+  } else if (name.includes('golem')) {
+    spriteKey = 'enemy_boss_golem';
+  } else {
+    // Default fallback
+    spriteKey = 'enemy_draugr';
+  }
+  
+  // Try to load enemy sprite
+  let enemyImg = AssetLoader.getImage(spriteKey);
+  let shadowImg = AssetLoader.getImage('enemy_shadow');
+  
+  // Draw shadow
+  if (shadowImg && shadowImg.complete && shadowImg.naturalWidth > 0) {
+    ctx.globalAlpha = 0.35;
+    ctx.drawImage(shadowImg, sx - 16, sy + 12, 32, 10);
+    ctx.globalAlpha = 1.0;
+  } else {
+    drawShadow(sx, sy + 15, 14, 5, 0.3);
+  }
+  
+  // Draw effects (frozen, elite, boss, hit flash)
+  if (frozen) {
+    ctx.shadowColor = ART.frost;
+    ctx.shadowBlur = 12;
+  }
+  if (boss && e.phase === 2) {
+    ctx.shadowColor = '#ff2200';
+    ctx.shadowBlur = 20;
+    drawGlow(sx, sy, e.sz * 2.2, 'rgb(216,48,36)', 0.14);
+  } else if (boss) {
+    ctx.shadowColor = '#d7b15c';
+    ctx.shadowBlur = 14;
+    drawGlow(sx, sy, e.sz * 2.2, 'rgb(215,177,92)', 0.08);
+  } else if (elite) {
+    ctx.shadowColor = ART.goldHot;
+    ctx.shadowBlur = 14;
+  }
+  if (hitAmt > 0) {
+    ctx.shadowColor = e.hitColor || '#ffffff';
+    ctx.shadowBlur = Math.max(ctx.shadowBlur || 0, 10 + hitAmt * 10);
+  }
+  
+  // Draw boss aura ring
+  if (boss) {
+    let px = (inDungeon ? dPlayer.x : P.x) - ((e.isDungeon ? dCam.x : cam.x) || 0);
+    let py = (inDungeon ? dPlayer.y : P.y) - ((e.isDungeon ? dCam.y : cam.y) || 0);
+    let distToPlayer = Math.hypot((inDungeon ? dPlayer.x : P.x) - e.x, (inDungeon ? dPlayer.y : P.y) - e.y);
+    let rangedWindup = e.range > 40 && e.shotTimer > 0 && e.shotTimer < 520 && distToPlayer < e.range + 180;
+    let meleeWindup = e.range <= 40 && e.shotTimer > 0 && e.shotTimer < 360 && distToPlayer < e.range + 70;
+    
+    ctx.strokeStyle = e.phase === 2 ? 'rgba(255,80,60,.22)' : 'rgba(248,218,130,.16)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(sx, sy, e.sz + 10 + pulse(220, e.id, 0, 4), 0, Math.PI * 2);
+    ctx.stroke();
+    
+    if (rangedWindup) {
+      let amt = 1 - e.shotTimer / 520;
+      ctx.strokeStyle = `rgba(255,90,60,${0.22 + amt * 0.35})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+    }
+    if (meleeWindup) {
+      let amt = 1 - e.shotTimer / 360;
+      ctx.strokeStyle = `rgba(255,90,60,${0.2 + amt * 0.32})`;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, e.range + 10 + amt * 14, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  
+  // Draw enemy sprite
+  if (enemyImg && enemyImg.complete && enemyImg.naturalWidth > 0) {
+    let spriteSize = boss ? 64 : 48;
+    let drawX = sx - spriteSize / 2;
+    let drawY = sy - spriteSize / 2;
+    
+    ctx.save();
+    if (facing < 0) {
+      ctx.translate(sx, sy);
+      ctx.scale(-1, 1);
+      ctx.drawImage(enemyImg, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+    } else {
+      ctx.drawImage(enemyImg, drawX, drawY, spriteSize, spriteSize);
+    }
+    ctx.restore();
+  } else {
+    // Fallback to procedural drawing if sprite not found
+    ctx.restore();
+    drawEnemyFigure(e, sx - (e.hitKickX || 0), sy - (e.hitKickY || 0) - bob);
+    return;
+  }
+  
+  ctx.restore();
+}
+
 function nearestLandmark(tx,ty,maxDist=8){
   let best=null,bestD=maxDist+1;
   worldLandmarks.forEach(site=>{
@@ -6723,7 +7021,12 @@ function loop(ts){
 initAudioUI();
 window.addEventListener('pointerdown',()=>ensureAudio(),{passive:true});
 window.addEventListener('keydown',()=>ensureAudio(),{passive:true});
-initClassPanel();
-initSkillbarTooltips();
-openTitleScreen();
-requestAnimationFrame(loop);
+
+// Initialize Asset Loader before starting the game
+AssetLoader.init(() => {
+  console.log('✅ All assets loaded successfully');
+  initClassPanel();
+  initSkillbarTooltips();
+  openTitleScreen();
+  requestAnimationFrame(loop);
+});
