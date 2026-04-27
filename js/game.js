@@ -3202,8 +3202,11 @@ function drawPlayerSprite(sx, sy) {
   let bodyKey = `${classId}_body`;
   let bodyImg = animFrame || AssetLoader.getImage(bodyKey);
   if (bodyImg && bodyImg.complete && bodyImg.naturalWidth > 0) {
-    let bodyHeight = 48;
-    let bodyWidth = 32;
+    let baseWidth = bodyImg.width;
+    let baseHeight = bodyImg.height;
+    let scaleFactor = baseWidth < 10 ? 16 : 1;  // Scale up tiny SVGs
+    let bodyWidth = baseWidth * scaleFactor;
+    let bodyHeight = baseHeight * scaleFactor;
     let drawX = sx - bodyWidth / 2 + fx * (attackEase * 5);
     let drawY = sy - bodyHeight + 10;
     
@@ -3439,17 +3442,22 @@ function drawEnemySprite(e, sx, sy) {
   // Draw enemy sprite (animated or static)
   let displayImg = animFrame || enemyImg;
   if (displayImg && displayImg.complete && displayImg.naturalWidth > 0) {
-    let spriteSize = boss ? 64 : 48;
-    let drawX = sx - spriteSize / 2;
-    let drawY = sy - spriteSize / 2;
+    let baseSize = boss ? 64 : 48;
+    let baseWidth = displayImg.width;
+    let baseHeight = displayImg.height;
+    let scaleFactor = baseWidth < 10 ? 16 : 1;  // Scale up tiny SVGs
+    let spriteWidth = baseWidth * scaleFactor;
+    let spriteHeight = baseHeight * scaleFactor;
+    let drawX = sx - spriteWidth / 2;
+    let drawY = sy - spriteHeight / 2;
     
     ctx.save();
     if (facing < 0) {
       ctx.translate(sx, sy);
       ctx.scale(-1, 1);
-      ctx.drawImage(displayImg, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+      ctx.drawImage(displayImg, -spriteWidth / 2, -spriteHeight / 2, spriteWidth, spriteHeight);
     } else {
-      ctx.drawImage(displayImg, drawX, drawY, spriteSize, spriteSize);
+      ctx.drawImage(displayImg, drawX, drawY, spriteWidth, spriteHeight);
     }
     ctx.restore();
   } else {
@@ -3878,9 +3886,13 @@ function drawWorldNPCFigure(n,sx,sy){
     // Draw NPC sprite if available
     if (npcImg && npcImg.complete && npcImg.naturalWidth > 0) {
       ctx.save();
-      let spriteSize = 48;
-      let drawX = sx - spriteSize / 2;
-      let drawY = sy - spriteSize / 2;
+      let baseWidth = npcImg.width;
+      let baseHeight = npcImg.height;
+      let scaleFactor = baseWidth < 10 ? 16 : 1;  // Scale up tiny SVGs
+      let spriteWidth = baseWidth * scaleFactor;
+      let spriteHeight = baseHeight * scaleFactor;
+      let drawX = sx - spriteWidth / 2;
+      let drawY = sy - spriteHeight / 2;
       
       // Apply effects based on NPC type
       let scholar = n.icon === '🔮' || n.icon === '📜';
@@ -3894,7 +3906,7 @@ function drawWorldNPCFigure(n,sx,sy){
         ctx.shadowBlur = 10;
       }
       
-      ctx.drawImage(npcImg, drawX, drawY, spriteSize, spriteSize);
+      ctx.drawImage(npcImg, drawX, drawY, spriteWidth, spriteHeight);
       
       // Draw merchant glow
       if ((n.shopItems || []).length > 0) {

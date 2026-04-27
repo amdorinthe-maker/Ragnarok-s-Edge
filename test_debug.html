@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Asset Loading</title>
+    <style>
+        body { background: #1a1a2e; color: #eee; font-family: monospace; padding: 20px; }
+        .status { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .success { background: #2d5a27; }
+        .error { background: #5a2727; }
+        img { margin: 5px; border: 1px solid #444; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Asset Loading Debug</h1>
+    <div id="output"></div>
+    
+    <script src="js/core/assets.js"></script>
+    <script>
+        const output = document.getElementById('output');
+        
+        async function test() {
+            output.innerHTML += '<div class="status">Starting asset load test...</div>';
+            
+            // Test specific paths
+            const testPaths = [
+                'assets/characters/berserker/berserker_idle_01.svg',
+                'assets/characters/npcs/npc_forgekeeper_idle_01.svg',
+                'assets/enemies/draugr/draugr_idle_01.svg',
+                'assets/enemies/wolf/wolf_idle_01.svg'
+            ];
+            
+            for (const path of testPaths) {
+                try {
+                    const img = await AssetLoader.loadImage(path);
+                    output.innerHTML += `<div class="status success">✅ Loaded: ${path}</div>`;
+                    const preview = document.createElement('img');
+                    preview.src = img.src;
+                    preview.width = 64;
+                    preview.height = 64;
+                    output.appendChild(preview);
+                } catch (e) {
+                    output.innerHTML += `<div class="status error">❌ Failed: ${path}<br>Error: ${e.message}</div>`;
+                }
+            }
+            
+            // Now test full animation loading
+            output.innerHTML += '<div class="status">Testing animation loading...</div>';
+            await AssetLoader.loadCharacterAnimations();
+            await AssetLoader.loadEnemyAnimations();
+            await AssetLoader.loadNPCAnimations();
+            
+            output.innerHTML += '<div class="status success">Animation loading complete!</div>';
+            output.innerHTML += '<div class="status">Loaded animations: ' + Object.keys(AssetLoader.animations).length + '</div>';
+            output.innerHTML += '<div>Keys: ' + Object.keys(AssetLoader.animations).slice(0, 20).join(', ') + '...</div>';
+        }
+        
+        test();
+    </script>
+</body>
+</html>
