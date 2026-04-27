@@ -376,10 +376,10 @@ const AssetLoader = {
         
         for (const cls of classes) {
             for (const state of states) {
-                // Expecting path like: assets/characters/berserker/berserker_idle_{frame}.png
+                // Expecting path like: assets/characters/berserker/berserker_idle_{frame}.svg
                 const path = `assets/characters/${cls}/${cls}_${state}_{frame}{ext}`;
                 // Assuming 4 frames per animation for now
-                await this.loadAnimationSequence(`${cls}_${state}`, path, 1, 4);
+                await this.loadAnimationSequence(`${cls}_${state}`, path, 1, 4, '.svg');
             }
         }
     },
@@ -394,7 +394,7 @@ const AssetLoader = {
         for (const enemy of enemies) {
             for (const state of states) {
                 const path = `assets/enemies/${enemy}/${enemy}_${state}_{frame}{ext}`;
-                await this.loadAnimationSequence(`${enemy}_${state}`, path, 1, 4);
+                await this.loadAnimationSequence(`${enemy}_${state}`, path, 1, 4, '.svg');
             }
         }
     },
@@ -409,7 +409,7 @@ const AssetLoader = {
         for (const npc of npcs) {
             for (const state of states) {
                 const path = `assets/characters/npcs/npc_${npc}_${state}_{frame}{ext}`;
-                await this.loadAnimationSequence(`npc_${npc}_${state}`, path, 1, 4);
+                await this.loadAnimationSequence(`npc_${npc}_${state}`, path, 1, 4, '.svg');
             }
         }
     },
