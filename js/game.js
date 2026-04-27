@@ -3449,7 +3449,7 @@ function drawEnemySprite(e, sx, sy) {
       ctx.scale(-1, 1);
       ctx.drawImage(displayImg, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
     } else {
-      ctx.drawImage(enemyImg, drawX, drawY, spriteSize, spriteSize);
+      ctx.drawImage(displayImg, drawX, drawY, spriteSize, spriteSize);
     }
     ctx.restore();
   } else {
