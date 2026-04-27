@@ -164,53 +164,46 @@
 <button id="replay-btn" onclick="restartGame()">⚔️ Rise Again</button>
   </div>
   <div id="title-screen" style="display: none;">
-    <div id="title-panel">
+  <div id="title-panel">
+      <div id="title-scene">
+        <div class="title-scene-layer">
+          <div class="title-scene-ridge back"></div>
+          <div class="title-scene-ridge mid"></div>
+          <div class="title-scene-ridge front"></div>
+        </div>
+        <div class="title-scene-gate">
+          <div class="pillar left"></div>
+          <div class="pillar right"></div>
+          <div class="arch"></div>
+          <div class="fracture"></div>
+          <div class="base"></div>
+        </div>
+        <div class="title-scene-raven left"></div>
+        <div class="title-scene-raven right"></div>
+        <div class="title-scene-caption">Ravenwatch holds the wound shut</div>
+      </div>
       <div id="title-kicker">The Last Watch</div>
       <h1>Ragnarok's Edge</h1>
       <div id="title-sub">A fallen Einherjar, phase-locked to Ravenwatch, sent into endless fractures to hold a dying multiverse together.</div>
-      <div id="title-grid">
-        <div id="title-scroll">
-          <h2>The Opening Narrative</h2>
-          <p>"You fell at the edge of the world, blade in hand, breath spent. The Valkyries were coming for you... but something broke.</p>
-          <p>The Great Bridge did not just break; it splintered. It pierced the veil of other lives, other times, and other worlds. Now the realms are bleeding. The ashes of Muspelheim cool in the neon rain of cities not yet born. The dead of Midgard wander deserts they do not recognize.</p>
-          <p>Ravenwatch stands at the one stable wound in creation. The Bifrost was not merely a road between realms. It was the loom that held fate in tension. Now every descent is a stitch through a tear that wants to widen.</p>
-          <p>You were not chosen for Valhalla. You were chosen to be the anchor. One warrior, bound to the shards of the bridge, sent to hunt through the endless echoes and sew the multiverse back together... or watch it all burn."</p>
-          <div class="title-note">You are the Echo-Warrior: phase-locked between death and remembrance. Every fall pulls you back to Ravenwatch. Every class is another self leaking through the fracture. The farther you descend, the more the world remembers futures it was never meant to touch.</div>
+      <div id="title-watchers">
+        <div class="title-watcher">
+          <b>Huginn</b>
+          <span>Watcher of Thought</span>
+          <p>Measures your combat logic, your boons, and the shape your choices carve through the fracture.</p>
         </div>
-        <div id="title-side">
-          <div class="title-card">
-            <h3>The Watchers</h3>
-            <p><b>Huginn</b>, watcher of Thought, measures your combat logic, boons, and the shape of your choices. <b>Muninn</b>, watcher of Memory, keeps the lodge, the stash, and the climb each fracture has remembered.</p>
-          </div>
-          <div class="title-card">
-            <h3>The Three Fractures</h3>
-            <div id="route-cards">
-              <div class="route-card">
-                <h4 style="color:#c9b6ff">Barrow Descent</h4>
-                <p>Desaturated grave halls, reliquaries, and armored memory made manifest. A cold route where relics and forgotten kings refuse to stay buried.</p>
-              </div>
-              <div class="route-card">
-                <h4 style="color:#e39a57">Ember Gate</h4>
-                <p>Muspelheim collides with an industrial age. Forge heat, steam presses, war-black steel, and shardfire weapons born from the broken bridge.</p>
-              </div>
-              <div class="route-card">
-                <h4 style="color:#7ab8ff">Seer Hollow</h4>
-                <p>Runic archives, omen chambers, and magical saturation straining against the veil. Thought itself echoes too loudly here.</p>
-              </div>
-            </div>
-          </div>
-          <div class="title-card">
-            <h3>Beyond Midgard</h3>
-            <p>The Norse fractures are only the beginning. Stabilize these wounds first, then prepare for the neon storms, stagecoach wastes, and machine futures already pressing against the horizon of Ravenwatch.</p>
-          </div>
+        <div class="title-watcher">
+          <b>Muninn</b>
+          <span>Watcher of Memory</span>
+          <p>Keeps the lodge, the stash, and the remembered climb. What survives the descent is written by his gaze.</p>
         </div>
       </div>
       <div id="title-actions">
         <button class="title-btn" onclick="startNewJourney()">Begin New Journey</button>
         <button class="title-btn secondary" id="title-continue-btn" onclick="continueJourney()">Continue Watch</button>
+        <button class="title-btn tertiary" onclick="openTitleLore()">Opening Narrative & Fractures</button>
       </div>
     </div>
-  </div>
+  </div></div>
 
 <!-- Scripts Load Order Matters -->
 <script src="js/core/assets.js"></script>
