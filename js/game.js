@@ -477,6 +477,35 @@ function continueJourney(){
     msg('⟳ Save restored. Welcome back to Ravenwatch.',2200);
   }else startNewJourney();
 }
+function openTitleLore(){
+  document.getElementById('npc-portrait').textContent='◈';
+  document.getElementById('npc-name').textContent='The Last Watch';
+  document.getElementById('npc-sub').textContent='RAVENWATCH • OPENING NARRATIVE • THE THREE FRACTURES';
+  document.getElementById('npc-text').innerHTML=
+    `<p>"You fell at the edge of the world, blade in hand, breath spent. The Valkyries were coming for you... but something broke."</p>
+     <p>The Great Bridge did not just break; it splintered. It pierced the veil of other lives, other times, and other worlds. Now the realms are bleeding. Ravenwatch stands at the one stable wound in creation, and every descent is a stitch through a tear that wants to widen.</p>
+     <p>You were not chosen for Valhalla. You were chosen to be the anchor. One warrior, bound to the shards of the bridge, sent to hunt through the endless echoes and sew the multiverse back together... or watch it all burn.</p>
+     <div style="margin-top:12px;padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.03)">
+       <div style="color:#c9b6ff;font-weight:bold;margin-bottom:4px">Barrow Descent</div>
+       <div style="color:#b8bfd4;font-size:12px;line-height:1.5">Desaturated grave halls, reliquaries, and armored memory made manifest. A cold route where relics and forgotten kings refuse to stay buried.</div>
+     </div>
+     <div style="margin-top:8px;padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.03)">
+       <div style="color:#e39a57;font-weight:bold;margin-bottom:4px">Ember Gate</div>
+       <div style="color:#b8bfd4;font-size:12px;line-height:1.5">Muspelheim collides with an industrial age. Forge heat, steam presses, war-black steel, and shardfire weapons born from the broken bridge.</div>
+     </div>
+     <div style="margin-top:8px;padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.03)">
+       <div style="color:#7ab8ff;font-weight:bold;margin-bottom:4px">Seer Hollow</div>
+       <div style="color:#b8bfd4;font-size:12px;line-height:1.5">Runic archives, omen chambers, and magical saturation straining against the veil. Thought itself echoes too loudly here.</div>
+     </div>`;
+  let opts=document.getElementById('npc-opts');
+  opts.innerHTML='';
+  let b=document.createElement('button');
+  b.className='npc-btn';
+  b.textContent='Return to the Gate';
+  b.onclick=closePanel;
+  opts.appendChild(b);
+  openPanel('npc');
+}
 function pickRouteDungeonModifier(route,floor){
   if(floor<=1)return null;
   let bias=(route?.modBias||[]).map(name=>DUNGEON_MODIFIERS.find(m=>m.name===name)).filter(Boolean);
