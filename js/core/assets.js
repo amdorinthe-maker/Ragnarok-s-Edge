@@ -5,6 +5,7 @@
 
 const AssetLoader = {
     images: {},
+    animations: {},  // Store animation sequences
     audio: {},
     loadedCount: 0,
     totalAssets: 0,
@@ -27,18 +28,19 @@ const AssetLoader = {
      * Initialize and load all assets
      * @param {Function} callback - Called when all assets are loaded
      */
-    init(callback) {
+    async init(callback) {
         this.onLoadComplete = callback;
-        this.loadAllAssets();
+        await this.loadAllAssets();
     },
 
     /**
      * Load all asset categories
      */
-    loadAllAssets() {
+    async loadAllAssets() {
         const assetLists = [
             this.loadCharacterSprites(),
             this.loadEnemySprites(),
+            this.loadNPCSprites(),
             this.loadWeaponSprites(),
             this.loadArmorSprites(),
             this.loadProjectileSprites(),
@@ -48,7 +50,13 @@ const AssetLoader = {
         ];
 
         // Flatten the array of arrays
-        const allAssets = assetLists.flat();
+        let allAssets = assetLists.flat();
+        
+        // Load animations (these are promise-based, not asset objects)
+        await this.loadCharacterAnimations();
+        await this.loadEnemyAnimations();
+        await this.loadNPCAnimations();
+        
         this.totalAssets = allAssets.length;
 
         if (this.totalAssets === 0) {
@@ -167,20 +175,33 @@ const AssetLoader = {
     },
 
     loadEnemySprites() {
-        const enemies = ['draugr', 'wolf', 'boss_golem'];
+        const enemies = ['draugr', 'wolf'];
+        const bosses = ['boss_golem', 'boss_wolf'];
         const assets = [];
-
+        
+        // Load animated enemies from folders
         enemies.forEach(enemy => {
-            const key = `enemy_${enemy}`;
-            const src = `${this.paths.enemies}${enemy}.svg`;
-            assets.push({ type: 'image', key, src });
+            // Load all animation frames for this enemy
+            const states = ['idle', 'walk', 'attack', 'hit', 'death'];
+            states.forEach(state => {
+                for (let i = 1; i <= 4; i++) {
+                    const key = `enemy_${enemy}_${state}_${String(i).padStart(2, '0')}`;
+                    const src = `${this.paths.enemies}${enemy}/${enemy}_${state}_${String(i).padStart(2, '0')}.svg`;
+                    assets.push({ type: 'image', key, src });
+                }
+            });
         });
         
-        // Add boss variants
-        assets.push({ 
-            type: 'image', 
-            key: 'enemy_boss_wolf', 
-            src: `${this.paths.enemies}boss_wolf.svg` 
+        // Load boss animations
+        bosses.forEach(boss => {
+            const states = ['idle', 'walk', 'attack', 'hit', 'death'];
+            states.forEach(state => {
+                for (let i = 1; i <= 4; i++) {
+                    const key = `enemy_${boss}_${state}_${String(i).padStart(2, '0')}`;
+                    const src = `${this.paths.enemies}${boss}/${boss}_${state}_${String(i).padStart(2, '0')}.svg`;
+                    assets.push({ type: 'image', key, src });
+                }
+            });
         });
         
         // Add generic enemy shadow
@@ -214,6 +235,33 @@ const AssetLoader = {
             const key = `armor_${armor}`;
             const src = `${this.paths.armor}${armor}.svg`;
             assets.push({ type: 'image', key, src });
+        });
+
+        return assets;
+    },
+
+    loadNPCSprites() {
+        const npcs = [
+            { role: 'forgekeeper', key: 'npc_forgekeeper' },
+            { role: 'runespeaker', key: 'npc_runespeaker' },
+            { role: 'pathfinder', key: 'npc_pathfinder' },
+            { role: 'lorekeeper', key: 'npc_lorekeeper' },
+            { role: 'merchant', key: 'npc_merchant' },
+            { role: 'trainer', key: 'npc_trainer' }
+        ];
+        const assets = [];
+
+        // Load animated NPCs from folders
+        npcs.forEach(npc => {
+            // Load idle and talk animations (most NPCs have these)
+            const states = ['idle', 'talk', 'walk'];
+            states.forEach(state => {
+                for (let i = 1; i <= 4; i++) {
+                    const key = `${npc.key}_${state}_${String(i).padStart(2, '0')}`;
+                    const src = `${this.paths.characters}npcs/npc_${npc.role}_${state}_${String(i).padStart(2, '0')}.svg`;
+                    assets.push({ type: 'image', key, src });
+                }
+            });
         });
 
         return assets;
@@ -277,6 +325,107 @@ const AssetLoader = {
         });
 
         return assets;
+    },
+
+    /**
+     * Load a sequence of images for animation
+     * @param {string} key - Base key for the animation
+     * @param {string} path - Path pattern (use {frame} as placeholder)
+     * @param {number} start - Start frame number
+     * @param {number} end - End frame number
+     * @param {string} ext - File extension
+     */
+    async loadAnimationSequence(key, path, start, end, ext = '.png') {
+        const frames = [];
+        for (let i = start; i <= end; i++) {
+            // Pad number with zeros (e.g., 01, 02)
+            const frameNum = i.toString().padStart(2, '0');
+            const fullPath = path.replace('{frame}', frameNum).replace('{ext}', ext);
+            try {
+                const img = await this.loadImage(fullPath);
+                frames.push(img);
+            } catch (e) {
+                console.warn(`Missing animation frame: ${fullPath}`);
+                // Push null or a fallback if a frame is missing
+                frames.push(null);
+            }
+        }
+        if (!this.animations[key]) this.animations[key] = {};
+        this.animations[key].frames = frames;
+        this.animations[key].length = frames.length;
+    },
+
+    /**
+     * Helper to load a single image (promise-based)
+     */
+    loadImage(src) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error(`Failed to load: ${src}`));
+            img.src = src;
+        });
+    },
+
+    /**
+     * Load all character animations
+     */
+    async loadCharacterAnimations() {
+        const classes = ['berserker', 'ranger', 'runecaster', 'guardian'];
+        const states = ['idle', 'walk', 'run', 'attack', 'hit', 'death'];
+        
+        for (const cls of classes) {
+            for (const state of states) {
+                // Expecting path like: assets/characters/berserker/berserker_idle_{frame}.png
+                const path = `assets/characters/${cls}/${cls}_${state}_{frame}{ext}`;
+                // Assuming 4 frames per animation for now
+                await this.loadAnimationSequence(`${cls}_${state}`, path, 1, 4);
+            }
+        }
+    },
+
+    /**
+     * Load Enemy Animations
+     */
+    async loadEnemyAnimations() {
+        const enemies = ['draugr', 'wolf', 'boss_golem', 'boss_wolf'];
+        const states = ['idle', 'walk', 'attack', 'hit', 'death'];
+
+        for (const enemy of enemies) {
+            for (const state of states) {
+                const path = `assets/enemies/${enemy}/${enemy}_${state}_{frame}{ext}`;
+                await this.loadAnimationSequence(`${enemy}_${state}`, path, 1, 4);
+            }
+        }
+    },
+
+    /**
+     * Load NPC Animations
+     */
+    async loadNPCAnimations() {
+        const npcs = ['forgekeeper', 'runespeaker', 'pathfinder', 'lorekeeper', 'merchant', 'trainer'];
+        const states = ['idle', 'talk', 'walk'];
+
+        for (const npc of npcs) {
+            for (const state of states) {
+                const path = `assets/characters/npcs/npc_${npc}_${state}_{frame}{ext}`;
+                await this.loadAnimationSequence(`npc_${npc}_${state}`, path, 1, 4);
+            }
+        }
+    },
+
+    /**
+     * Get current animation frame based on time
+     * @param {string} animKey - Animation key
+     * @param {number} time - Current time or frame counter
+     * @param {number} fps - Frames per second
+     */
+    getAnimationFrame(animKey, time, fps = 12) {
+        const anim = this.animations[animKey];
+        if (!anim || !anim.frames || anim.frames.length === 0) return null;
+        
+        const frameIndex = Math.floor((time / 1000) * fps) % anim.frames.length;
+        return anim.frames[frameIndex];
     }
 };
 

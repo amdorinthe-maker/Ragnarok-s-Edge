@@ -3184,9 +3184,23 @@ function drawPlayerSprite(sx, sy) {
     drawShadow(sx + fx * 3, sy + 15, 14, 5, 0.3);
   }
   
-  // Draw character body
+  // Determine animation state
+  let animState = 'idle';
+  if (attackPose > 0.1) {
+    animState = 'attack';
+  } else if (moving && P.sprinting) {
+    animState = 'run';
+  } else if (moving) {
+    animState = 'walk';
+  }
+  
+  // Try to get animated frame first
+  let animKey = `${classId}_${animState}`;
+  let animFrame = AssetLoader.getAnimationFrame(animKey, Date.now(), 12);
+  
+  // Draw character body (animated or static)
   let bodyKey = `${classId}_body`;
-  let bodyImg = AssetLoader.getImage(bodyKey);
+  let bodyImg = animFrame || AssetLoader.getImage(bodyKey);
   if (bodyImg && bodyImg.complete && bodyImg.naturalWidth > 0) {
     let bodyHeight = 48;
     let bodyWidth = 32;
@@ -3330,17 +3344,29 @@ function drawEnemySprite(e, sx, sy) {
   let name = (e.name || '').toLowerCase();
   let spriteKey = '';
   
+  // Determine animation state
+  let animState = 'idle';
+  if (e.shotTimer > 0 && e.shotTimer < 400) {
+    animState = 'attack';
+  } else if (e.moveX || e.moveY) {
+    animState = 'walk';
+  }
+  
   // Determine sprite key based on enemy type
   if (name.includes('wolf') || name.includes('fenrir')) {
-    spriteKey = boss ? 'enemy_boss_wolf' : 'enemy_wolf';
+    spriteKey = boss ? 'boss_wolf' : 'wolf';
   } else if (name.includes('draugr')) {
-    spriteKey = 'enemy_draugr';
+    spriteKey = 'draugr';
   } else if (name.includes('golem')) {
-    spriteKey = 'enemy_boss_golem';
+    spriteKey = 'boss_golem';
   } else {
     // Default fallback
-    spriteKey = 'enemy_draugr';
+    spriteKey = 'draugr';
   }
+  
+  // Build animation frame key: enemyType_state_frameNumber
+  let animKey = `${spriteKey}_${animState}`;
+  let animFrame = AssetLoader.getAnimationFrame(animKey, Date.now(), 12);
   
   // Try to load enemy sprite
   let enemyImg = AssetLoader.getImage(spriteKey);
@@ -3410,8 +3436,9 @@ function drawEnemySprite(e, sx, sy) {
     }
   }
   
-  // Draw enemy sprite
-  if (enemyImg && enemyImg.complete && enemyImg.naturalWidth > 0) {
+  // Draw enemy sprite (animated or static)
+  let displayImg = animFrame || enemyImg;
+  if (displayImg && displayImg.complete && displayImg.naturalWidth > 0) {
     let spriteSize = boss ? 64 : 48;
     let drawX = sx - spriteSize / 2;
     let drawY = sy - spriteSize / 2;
@@ -3420,7 +3447,7 @@ function drawEnemySprite(e, sx, sy) {
     if (facing < 0) {
       ctx.translate(sx, sy);
       ctx.scale(-1, 1);
-      ctx.drawImage(enemyImg, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+      ctx.drawImage(displayImg, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
     } else {
       ctx.drawImage(enemyImg, drawX, drawY, spriteSize, spriteSize);
     }
@@ -3820,6 +3847,66 @@ function drawWorldProp(tx,ty,sx,sy){
   ctx.restore();
 }
 function drawWorldNPCFigure(n,sx,sy){
+  // Try to use sprite-based rendering if assets are loaded
+  if (AssetLoader && AssetLoader.isLoaded) {
+    const roleKey = n.role?.toLowerCase().replace(/\s+/g, '_') || 'merchant';
+    
+    // Determine animation state
+    let animState = 'idle';
+    if (n.talking || n.dialogueOpen) {
+      animState = 'talk';
+    } else if (n.moveX || n.moveY) {
+      animState = 'walk';
+    }
+    
+    // Build animation frame key: npcRole_state_frameNumber
+    let animKey = `npc_${roleKey}_${animState}`;
+    let animFrame = AssetLoader.getAnimationFrame(animKey, Date.now(), 12);
+    
+    const npcImg = animFrame;
+    const shadowImg = AssetLoader.getImage('enemy_shadow');
+    
+    // Draw shadow
+    if (shadowImg && shadowImg.complete && shadowImg.naturalWidth > 0) {
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(shadowImg, sx - 16, sy + 12, 32, 10);
+      ctx.globalAlpha = 1.0;
+    } else {
+      drawShadow(sx, sy+14, 13, 5, .28);
+    }
+    
+    // Draw NPC sprite if available
+    if (npcImg && npcImg.complete && npcImg.naturalWidth > 0) {
+      ctx.save();
+      let spriteSize = 48;
+      let drawX = sx - spriteSize / 2;
+      let drawY = sy - spriteSize / 2;
+      
+      // Apply effects based on NPC type
+      let scholar = n.icon === '🔮' || n.icon === '📜';
+      let trade = n.icon === '💰' || n.icon === '⚒' || n.icon === 'J';
+      
+      if (scholar) {
+        ctx.shadowColor = '#b9a4ff';
+        ctx.shadowBlur = 12;
+      } else if (trade) {
+        ctx.shadowColor = '#d7b15c';
+        ctx.shadowBlur = 10;
+      }
+      
+      ctx.drawImage(npcImg, drawX, drawY, spriteSize, spriteSize);
+      
+      // Draw merchant glow
+      if ((n.shopItems || []).length > 0) {
+        drawGlow(sx, sy, 22, 'rgb(215,177,92)', 0.09);
+      }
+      
+      ctx.restore();
+      return;
+    }
+  }
+  
+  // Fallback to procedural drawing
   ctx.save();
   drawShadow(sx,sy+14,13,5,.28);
   let robe=n.col||'#7b6232';
