@@ -559,10 +559,12 @@ function openTitleScreen(){
   openPanel(null);
   updateTitleScreen();
   el.style.display='flex';
+  document.body.classList.add('title-active');
 }
 function closeTitleScreen(){
   let el=document.getElementById('title-screen');
   if(el)el.style.display='none';
+  document.body.classList.remove('title-active');
 }
 function startNewJourney(){
   closeTitleScreen();
@@ -5481,16 +5483,6 @@ function applyPerk(pk){
   if(pk.name==='Arcane Wellspring'){P.maxMp+=35;P.mp=Math.min(P.maxMp,P.mp+35);} 
   if(pk.name==='Bulwark')P._bulwarkWardTimer=Math.max(P._bulwarkWardTimer||0,2500);
 }
-function initClassPanel(){
-  let wrap=document.getElementById('class-list');if(!wrap)return;
-  wrap.innerHTML='';
-  CLASS_DEFS.forEach(cls=>{
-    let d=document.createElement('div');d.className='class-card';
-    d.innerHTML=`<div class="class-name">${cls.icon} ${cls.name}</div><div class="class-desc">${cls.desc}</div><div class="class-stats">HP ${cls.stats.maxHp} Â· MP ${cls.stats.maxMp} Â· RUN ${cls.stats.maxStamina}<br>ATK ${cls.stats.baseDmg} Â· DEF ${cls.stats.def} Â· SPD ${cls.stats.spd.toFixed(2)}</div>`;
-    d.onclick=()=>startClass(cls.id);
-    wrap.appendChild(d);
-  });
-}
 function classPresentation(cls){
   if(cls.id==='berserker')return{accent:'#d36c45',role:'Frontline Reaver',passive:'Thrives in close combat with stronger melee damage and longer rage windows.',loadout:'Berserker Axe, Leather Vest, and two Minor Heals.',signature:'Best when you stay on top of enemies and force momentum.',focus:[['HP',cls.stats.maxHp],['ATK',cls.stats.baseDmg],['RUN',cls.stats.maxStamina]]};
   if(cls.id==='ranger')return{accent:'#8fbf65',role:'Mobile Hunter',passive:'Excels with ranged power, bonus crit, and efficient sprint control.',loadout:'Hunter Longbow, Leather Vest, one heal, and one mana vial.',signature:'Strongest when kiting, piercing lanes, and punishing openings.',focus:[['SPD',cls.stats.spd.toFixed(2)],['CRIT','High'],['RUN',cls.stats.maxStamina]]};
@@ -5916,11 +5908,6 @@ function itemSlotShort(item){
   return item.type==='weapon'?'WPN':item.type==='armor'?'ARM':item.type==='helm'?'HLM':'RUN';
 }
 function equippedLabel(item){
-  if(!item)return '<span style="color:#444">â€” none â€”</span>';
-  let rc=rarityColor(item.rarity);
-  return `${item.icon} ${item.name}${item.upg>0?` <span style="color:#ffd700">${'â˜…'.repeat(item.upg)}</span>`:''} <span style="color:${rc};font-size:11px">[${item.rarity.toUpperCase()}]</span>`;
-}
-function equippedLabel(item){
   if(!item)return '<span style="color:#444">none</span>';
   let rc=rarityColor(item.rarity);
   let stars=item.upg>0?` <span style="color:#ffd700">${'*'.repeat(item.upg)}</span>`:'';
@@ -6075,32 +6062,6 @@ function getEquippedForSlot(item){
   return P.equip[s];
 }
 function statDiff(nv,ov){let d=nv-ov;if(d>0)return`<span class="tip-up">+${d}</span>`;if(d<0)return`<span class="tip-down">${d}</span>`;return`<span class="tip-same">same</span>`;}
-function buildTooltip(item){
-  if(item.type==='quest')return`<div class="tip-title">${item.icon} ${item.name}</div><div class="tip-rarity" style="color:#ff8c00">${itemSlotLabel(item).toUpperCase()} Â· LEGENDARY</div><hr class="tip-divider"><div class="tip-stat"><span>Route</span><span>${routeDef(item.routeId||'barrow').name}</span></div><div class="tip-stat"><span>Purpose</span><span>Repair Bifrost Gate</span></div><hr class="tip-divider"><div style="color:#c7b98a;font-size:11px">${item.desc||'A shard of the broken bridge.'}</div><hr class="tip-divider"><div style="color:#555;font-size:11px">Locked relic - cannot be sold or equipped</div>`;
-  if(item.type==='potion')return`<div class="tip-title">${item.icon} ${item.name}</div><div class="tip-rarity" style="color:#ff4488">POTION</div><hr class="tip-divider"><div class="tip-stat"><span>${item.potionType==='hp'?'â¤ï¸ Heals':item.potionType==='mp'?'ðŸ’§ Restores':'âš—ï¸ Effect'}</span><span>${item.heal>=999?'FULL':item.heal+(item.potionType==='mp'?' MP':' HP')}</span></div><hr class="tip-divider"><div style="color:#555;font-size:11px">Click to use</div>`;
-  let eq=getEquippedForSlot(item),rc={common:'#aaa',rare:'#4169e1',epic:'#9b30ff',legendary:'#ff8c00'}[item.rarity];
-  let upgCost=forgeUpgradeCost(item);
-  let h=`<div class="tip-title">${item.icon} ${item.name}${item.upg>0?' '+'â˜…'.repeat(item.upg):''}</div>`;
-  h+=`<div class="tip-rarity" style="color:${rc}">${item.rarity.toUpperCase()} Â· â˜…${item.upg||0}/5 Â· Next: ${(item.upg||0)<5?upgCost+'g':'MAX'}</div><hr class="tip-divider">`;
-  if(item.dmg!=null)h+=`<div class="tip-stat"><span>âš”ï¸ Damage</span><span>${item.dmg}</span></div>`;
-  if(item.def!=null)h+=`<div class="tip-stat"><span>ðŸ›¡ï¸ Defense</span><span>${item.def}</span></div>`;
-  if(item.hpBonus)h+=`<div class="tip-stat"><span>â¤ï¸ Max HP</span><span>+${item.hpBonus}</span></div>`;
-  if(item.mpBonus)h+=`<div class="tip-stat"><span>ðŸ’§ Max MP</span><span>+${item.mpBonus}</span></div>`;
-  if(item.bonusCrit)h+=`<div class="tip-stat"><span>ðŸŽ¯ Crit</span><span>+${item.bonusCrit}%</span></div>`;
-  if(item.bonusSpd||item.spdBonus)h+=`<div class="tip-stat"><span>ðŸ’¨ Speed</span><span>+${item.bonusSpd||item.spdBonus}</span></div>`;
-  if(item.bonusDmg)h+=`<div class="tip-stat"><span>âš”ï¸ Attack</span><span>+${item.bonusDmg}</span></div>`;
-  if(item.manaRegen)h+=`<div class="tip-stat"><span>ðŸ”¹ Mana Regen</span><span>+${item.manaRegen.toFixed(2)}/s</span></div>`;
-  if(item.skillMult)h+=`<div class="tip-stat"><span>âœ¨ Skill Power</span><span>+${Math.round(item.skillMult*100)}%</span></div>`;
-  if(item.damageReduction)h+=`<div class="tip-stat"><span>ðŸ›¡ï¸ Damage Taken</span><span>-${Math.round(item.damageReduction*100)}%</span></div>`;
-  if(item.lifesteal)h+=`<div class="tip-stat"><span>ðŸ©¸ Lifesteal</span><span>${Math.round(item.lifesteal*100)}%</span></div>`;
-  if(item.meleeMult)h+=`<div class="tip-stat"><span>ðŸª“ Melee Power</span><span>+${Math.round(item.meleeMult*100)}%</span></div>`;
-  if(item.rangedMult)h+=`<div class="tip-stat"><span>ðŸ¹ Ranged Power</span><span>+${Math.round(item.rangedMult*100)}%</span></div>`;
-  if(item.special)h+=`<div class="tip-stat"><span>âœ¨ Special</span><span style="color:#ffd700">${item.special}</span></div>`;
-  if(eq&&eq!==item){h+=`<hr class="tip-divider"><div class="tip-section">vs. ${eq.icon} ${eq.name}</div>`;if(item.dmg!=null||eq.dmg!=null)h+=`<div class="tip-stat"><span>âš”ï¸</span>${statDiff(item.dmg||0,eq.dmg||0)}</div>`;if(item.def!=null||eq.def!=null)h+=`<div class="tip-stat"><span>ðŸ›¡ï¸</span>${statDiff(item.def||0,eq.def||0)}</div>`;}
-  else h+=`<div style="color:#555;font-size:11px;margin-top:6px">Nothing equipped in slot</div>`;
-  h+=`<hr class="tip-divider"><div style="color:#555;font-size:11px">Click=equip Â· Right-click=drop</div>`;
-  return h;
-}
 function buildTooltip(item){
   if(item.type==='quest')return`<div class="tip-title">${item.icon} ${item.name}</div><div class="tip-rarity" style="color:#ff8c00">${itemSlotLabel(item).toUpperCase()} | LEGENDARY</div><hr class="tip-divider"><div class="tip-stat"><span>Route</span><span>${routeDef(item.routeId||'barrow').name}</span></div><div class="tip-stat"><span>Purpose</span><span>Repair Bifrost Gate</span></div><hr class="tip-divider"><div style="color:#c7b98a;font-size:11px">${item.desc||'A shard of the broken bridge.'}</div><hr class="tip-divider"><div style="color:#555;font-size:11px">Locked relic - cannot be sold or equipped</div>`;
   if(item.type==='potion')return`<div class="tip-title">${item.icon} ${item.name}</div><div class="tip-rarity" style="color:#ff4488">${itemSlotLabel(item).toUpperCase()}</div><hr class="tip-divider"><div class="tip-stat"><span>${item.potionType==='hp'?'Heals':item.potionType==='mp'?'Restores':'Effect'}</span><span>${item.heal>=999?'FULL':item.heal+(item.potionType==='mp'?' MP':' HP')}</span></div><hr class="tip-divider"><div style="color:#555;font-size:11px">Click to use</div>`;
@@ -6351,41 +6312,6 @@ function flashPuzzleSequence(){
   flash();
 }
 
-function puzzleInput(runeIdx){
-  if(panel!=='puzzle'||puzzlePhase!=='input')return;
-  let expected=puzzleCorrectSeq[puzzleUserSeq.length];
-  puzzleUserSeq.push(runeIdx);
-  let btns=document.getElementById('rune-sequence').querySelectorAll('.rune-btn');
-  if(runeIdx===expected){
-    if(btns[puzzleUserSeq.length-1]){btns[puzzleUserSeq.length-1].className='rune-btn correct';btns[puzzleUserSeq.length-1].textContent=RUNE_SYMBOLS[runeIdx];}
-    if(puzzleUserSeq.length===puzzleCorrectSeq.length){
-      // Solved!
-      activePuzzle.solved=true;
-      document.getElementById('puzzle-msg').textContent='CORRECT! Vault unlocked!';
-      setTimeout(()=>{
-        closePanel();
-        // Place vault chest
-        let vp=activePuzzle;
-        dmap[vp.vaultY][vp.vaultX]=DT.CHEST;
-        let vaultChest={x:vp.vaultX,y:vp.vaultY,opened:false,isVault:true,rarity:'epic',items:[vp.vaultItem,rollPotion(dungeonFloor),{isGold:true,val:scaledGoldValue(55+dungeonFloor*14,dungeonFloor)}]};
-        dchests.push(vaultChest);
-        openChest(vaultChest);
-        msg('RUNE VAULT UNLOCKED!',2800);
-      },1200);
-    }
-  }else{
-    if(btns[puzzleUserSeq.length-1]){btns[puzzleUserSeq.length-1].className='rune-btn wrong';btns[puzzleUserSeq.length-1].textContent=RUNE_SYMBOLS[runeIdx];}
-    document.getElementById('puzzle-msg').textContent='âŒ Wrong! Try again...';
-    takeDamage(20);
-    setTimeout(()=>{
-      puzzleUserSeq=[];
-      puzzlePhase='show';
-      concealPuzzleSequence();
-      document.getElementById('puzzle-msg').textContent='Watch again...';
-      setTimeout(()=>flashPuzzleSequence(),600);
-    },800);
-  }
-}
 
 // â”€â”€ NPC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function openNPC(npc){
@@ -6491,33 +6417,6 @@ function rewardLandmark(site,rewards={},headline=''){
   if(rewards.maxStamina){P.maxStamina+=rewards.maxStamina;P.stamina=Math.min(P.maxStamina,P.stamina+rewards.maxStamina);floatText('+'+rewards.maxStamina+' RUN',lx,ly-46,'#9fd27d',13);}
   spawnParticle(lx,ly,site.kind==='grave'?'#9f8cff':'#d7b15c',18,true);
   if(headline)msg(headline,2800);
-}
-function interactWorldLandmark(site){
-  if(!site||(site.used&&!isReusableLandmarkKind(site.kind)))return;
-  if(site.kind==='ruin'){
-    site.used=true;
-    rewardLandmark(site,{mp:35,maxMp:10,items:[{...POTIONS[3]}]},'áš± Stone Circle answered your call. Mana and a runic vial restored.');
-  }else if(site.kind==='grove'){
-    site.used=true;
-    rewardLandmark(site,{hp:55,items:[rollPotion(1)]},'ðŸŒ² Sacred Grove soothed your wounds and yielded fresh supplies.');
-  }else if(site.kind==='bridge'){
-    site.used=true;
-    rewardLandmark(site,{gold:45+Math.floor(P.level*12),items:[{...POTIONS[0]}]},'â•¬ You found a traveler\'s cache beneath the broken bridge.');
-  }else if(site.kind==='tower'){
-    site.used=true;
-    rewardLandmark(site,{gold:30,items:[makeItem(14,1,P.level)],maxStamina:12},'ðŸ•¯ From the watchtower you recover scout gear and a better sense of the roads ahead.');
-  }else if(site.kind==='grave'){
-    if(site.pending){msg('The barrows are already stirring. Survive the ambush first.',1800);return;}
-    site.pending=true;
-    let def=EDEFS.find(e=>e.name==='Skeleton')||EDEFS[0];
-    let sf=scaleFactor(1,P.level)*1.8;
-    for(let k=0;k<3;k++){
-      let ang=(Math.PI*2/3)*k;
-      enemies.push({...def,name:k===2?'Barrow Warden':'Restless Dead',col:k===2?'#9b7cff':'#b4b09d',isElite:k===2,maxHp:Math.floor(def.hp*sf*(k===2?2.1:1.2)),hp:Math.floor(def.hp*sf*(k===2?2.1:1.2)),dmg:Math.floor(def.dmg*sf*(k===2?1.5:1.05)),xp:Math.floor(def.xp*sf*(k===2?2.4:1.2)),gold:Math.floor(def.gold*sf*(k===2?3:1.3)),shotTimer:0,froze:0,slow:0,id:Math.random(),x:site.x*T+T/2+Math.cos(ang)*70,y:site.y*T+T/2+Math.sin(ang)*70,isDungeon:false,landmarkSiteId:site.id});
-    }
-    spawnParticle(site.x*T+T/2,site.y*T+T/2,'#9f8cff',24,true);
-    msg('Whispering Barrows awakened! Defeat the restless dead.',2600);
-  }
 }
 function drawWorldSiteSprite(site,sx,sy){
   ctx.save();
@@ -7208,21 +7107,6 @@ function openStairsIfReady(){
   }
 }
 function getCurrentRoom(){let ptx=Math.floor(dPlayer.x/DTILE),pty=Math.floor(dPlayer.y/DTILE);return drooms.findIndex(r=>ptx>=r.x&&ptx<r.x+r.w&&pty>=r.y&&pty<r.y+r.h);}
-function checkRoomCleared(ri){
-  if(ri<0)return;let room=drooms[ri];if(!room||room.cleared)return;
-  let alive=enemies.filter(e=>e.hp>0&&e.roomId===room.id&&!e.isBoss).length;
-  if(alive===0){
-    room.cleared=true;
-    let next=drooms[ri+1];
-    if(next?.doorX!=null){
-      let dt2=next.isBossRoom?DT.BOSS_DOOR:DT.DOOR;
-      if(dmap[next.doorY]?.[next.doorX]===dt2){
-        dmap[next.doorY][next.doorX]=DT.FLOOR;
-        msg(next.isBossRoom?'Boss door unlocked! Face '+currentDungeonBossDef().name+'!':'Room cleared! Door unlocked.',2000);
-      }
-    }
-  }
-}
 function collectChest(chest){
   if(chest.opened)return;chest.opened=true;dmap[chest.y][chest.x]=DT.FLOOR;
   chest.items.forEach(item=>{
@@ -7230,23 +7114,6 @@ if(item.isGold){let g=item.val*(dungeonHasMod('Blessed')?2:1);P.gold+=g;floatTex
     else if(addItemToInventory({...item})){}
     else loot.push({...item,x:dPlayer.x+Math.random()*60-30,y:dPlayer.y+Math.random()*60-30,id:Math.random(),isDungeon:true,pickupCooldown:2000});
   });
-}
-function checkRoomCleared(ri){
-  if(ri<0)return;
-  let room=drooms[ri];
-  if(!room||room.cleared||room.isBossRoom)return;
-  let alive=enemies.filter(e=>e.hp>0&&e.roomId===room.id&&!e.isBoss).length;
-  if(alive!==0)return;
-  room.cleared=true;
-  let next=drooms[ri+1];
-  if(next?.doorX==null)return;
-  let dt2=next.isBossRoom?DT.BOSS_DOOR:DT.DOOR;
-  let allMinionsDown=!next.isBossRoom||enemies.filter(e=>e.hp>0&&!e.isBoss).length===0;
-  if(allMinionsDown&&dmap[next.doorY]?.[next.doorX]===dt2){
-    dmap[next.doorY][next.doorX]=DT.FLOOR;
-    if(next.isBossRoom)bossReady=true;
-    msg(next.isBossRoom?'Boss sanctum opened! Face '+currentDungeonBossDef().name+'!':'Room cleared! Door unlocked.',2200);
-  }
 }
 function openChest(chest){
   if(chest.opened)return;pendingChest=chest;
@@ -7269,24 +7136,6 @@ function openChest(chest){
 }
 
 // â”€â”€ ENEMIES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function checkRoomCleared(ri){
-  if(ri<0)return;
-  let room=drooms[ri];
-  if(!room||room.cleared)return;
-  let alive=enemies.filter(e=>e.hp>0&&e.roomId===room.id&&!e.isBoss).length;
-  if(alive!==0)return;
-  room.cleared=true;
-  let next=drooms[ri+1];
-  if(next?.doorX==null)return;
-  let dt2=next.isBossRoom?DT.BOSS_DOOR:DT.DOOR;
-  let remaining=enemies.filter(e=>e.hp>0&&!e.isBoss).length;
-  let allMinionsDown=!next.isBossRoom||remaining===0;
-  if(allMinionsDown&&dmap[next.doorY]?.[next.doorX]===dt2){
-    dmap[next.doorY][next.doorX]=DT.FLOOR;
-    if(next.isBossRoom)bossReady=true;
-    msg(next.isBossRoom?`${currentDungeonBossDef().name}'s lair is now open!`:'Room cleared! Door unlocked.',2400);
-  }
-}
 function checkRoomCleared(ri){
   if(ri<0)return;
   let room=drooms[ri];
@@ -7978,6 +7827,7 @@ function handleDeath(){
   if(!dead){
     if(!P.revived&&P.perks.some(p=>p.name==='Valhalla Chosen')){P.revived=true;P.hp=Math.floor(P.maxHp*.3);msg('VALHALLA CHOSEN - REVIVED FROM DEATH!',3500);return;}
     dead=true;
+    if(panel)openPanel(null);
     document.getElementById('death-stats').innerHTML=
       `Level ${P.level} | Deepest floor ${dungeonFloor}<br>`+
       `${P.gold} gold earned | ${playerAtk()} attack | ${playerDef()} defense<br>`+

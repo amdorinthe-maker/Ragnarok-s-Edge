@@ -243,6 +243,7 @@ box-shadow:0 14px 26px rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.02);tra
 #death-screen .stats{color:#c8a000;font-size:15px;font-family:'Courier New',monospace;text-align:center;line-height:2}
 #replay-btn{background:#1a0000;border:2px solid #cc1122;color:#ff4444;font-size:20px;padding:14px 40px;border-radius:5px;cursor:pointer;font-family:'Courier New',monospace;transition:all .2s}
 #replay-btn:hover{background:#cc1122;color:#fff;text-shadow:0 0 8px #fff}
+body.title-active #hud-top,body.title-active #mm-wrap,body.title-active #skillbar,body.title-active #gold,body.title-active #audio-hud,body.title-active #dungeon-hud,body.title-active #wave-hud,body.title-active #bossbar,body.title-active #debuff-display,body.title-active #msg{display:none!important}
 #title-screen{position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:35;pointer-events:all;background:
 radial-gradient(circle at 50% 12%,rgba(122,184,255,.18) 0%,rgba(122,184,255,0) 28%),
 radial-gradient(circle at 18% 0%,rgba(216,108,47,.16) 0%,rgba(216,108,47,0) 32%),
