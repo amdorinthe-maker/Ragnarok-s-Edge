@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -23,13 +23,13 @@
   <div id="mm-wrap"><canvas id="mm2" width="120" height="120"></canvas></div>
   <div id="debuff-display"></div>
   <div id="skillbar">
-    <div class="sk" onclick="useSkill(0)">🪓<span class="sk-key">1</span><div class="sk-cd" id="cd0" style="display:none"></div></div>
-    <div class="sk" onclick="useSkill(1)">⚡<span class="sk-key">2</span><div class="sk-cd" id="cd1" style="display:none"></div></div>
-    <div class="sk" onclick="useSkill(2)">❄️<span class="sk-key">3</span><div class="sk-cd" id="cd2" style="display:none"></div></div>
-    <div class="sk" onclick="useSkill(3)">🔥<span class="sk-key">4</span><div class="sk-cd" id="cd3" style="display:none"></div></div>
-    <div class="sk" onclick="usePotion()" style="border-color:#ff4488">🧪<span class="sk-key">Q</span><span class="sk-count" id="potion-count">0</span></div>
+    <div class="sk" onclick="useSkill(0)"><span class="sk-glyph">--</span><span class="sk-key">1</span><div class="sk-cd" id="cd0" style="display:none"></div></div>
+    <div class="sk" onclick="useSkill(1)"><span class="sk-glyph">--</span><span class="sk-key">2</span><div class="sk-cd" id="cd1" style="display:none"></div></div>
+    <div class="sk" onclick="useSkill(2)"><span class="sk-glyph">--</span><span class="sk-key">3</span><div class="sk-cd" id="cd2" style="display:none"></div></div>
+    <div class="sk" onclick="useSkill(3)"><span class="sk-glyph">--</span><span class="sk-key">4</span><div class="sk-cd" id="cd3" style="display:none"></div></div>
+    <div class="sk" onclick="usePotion()" style="border-color:#ff4488"><span class="sk-glyph">HP</span><span class="sk-key">Q</span><span class="sk-count" id="potion-count">0</span></div>
   </div>
-  <div id="gold">💰 0g | Ranger | [I] Bag [F] Interact [Q] Potion(0) [Shift] Sprint [P] Pause [M] Audio</div>
+  <div id="gold">Gold 0g | Ranger | [I] Bag [K] Skills [F] Interact [Q] Potion(0) [Shift] Sprint [P] Pause [M] Audio</div>
   <div id="audio-hud">
     <button class="audio-btn" id="audio-mute-btn" onclick="toggleAudioMute()">SFX On</button>
     <label class="audio-group">Master <input id="audio-master" type="range" min="0" max="100" value="70" oninput="setAudioMaster(this.value)"></label>
@@ -39,7 +39,7 @@
   <div id="bossbar"><div id="bossname">BOSS</div><div id="bossbg"><div id="bossf" style="width:100%"></div></div></div>
   <div id="msg" style="opacity: 0;">Chosen class: <b>Ranger</b><br><small>Fast hunter with deadly arrows and sharper critical strikes.</small></div>
   <div id="dungeon-hud">
-    <span>🏚️ Floor <b id="floor-num">1</b></span>
+    <span>Floor <b id="floor-num">1</b></span>
     <span>Room <b id="room-num">1</b>/<b id="room-tot">?</b></span>
     <span id="floor-enemies-wrap"><span>Enemies: <b id="floor-enemies">0</b></span><span id="floor-enemies-note">Clear To Open Lair</span></span>
     <span id="floor-objective">Clear the floor to reveal the lair</span>
@@ -52,18 +52,20 @@
   </div>
   <!-- INVENTORY -->
   <div class="panel" id="inv-panel" style="display: none;">
-    <h3>⚔️ Equipment &amp; Inventory</h3>
+    <h3>Equipment &amp; Inventory</h3>
     <div id="inv-top">
       <div id="equip-slots">
-        <div class="esl" onclick="unequip('weapon')"><span class="esl-lbl">WEAPON</span><span class="esl-val" id="eq-wv">—</span></div>
-        <div class="esl" onclick="unequip('armor')"><span class="esl-lbl">ARMOR</span><span class="esl-val" id="eq-av">—</span></div>
-        <div class="esl" onclick="unequip('helm')"><span class="esl-lbl">HELMET</span><span class="esl-val" id="eq-hv">—</span></div>
-        <div class="esl" onclick="unequip('rune')"><span class="esl-lbl">RUNE</span><span class="esl-val" id="eq-rv">—</span></div>
+        <div class="esl" onclick="unequip('weapon')"><span class="esl-lbl">WEAPON</span><span class="esl-val" id="eq-wv">-</span></div>
+        <div class="esl" onclick="unequip('armor')"><span class="esl-lbl">ARMOR</span><span class="esl-val" id="eq-av">-</span></div>
+        <div class="esl" onclick="unequip('helm')"><span class="esl-lbl">HELMET</span><span class="esl-val" id="eq-hv">-</span></div>
+        <div class="esl" onclick="unequip('rune')"><span class="esl-lbl">RUNE</span><span class="esl-val" id="eq-rv">-</span></div>
         <div id="inv-stats">
-          <span>⚔️ ATK: <b id="stat-atk">0</b></span><span>🛡️ DEF: <b id="stat-def">0</b></span>
-          <span>❤️ HP: <b id="stat-hp">0</b></span><span>💧 MP: <b id="stat-mp">0</b></span>
-          <span>🧪 Potions: <b id="stat-pot">0</b></span><span>🎒 Bag: <b id="stat-bag">0/50</b></span>
-          <span style="grid-column:1 / -1">🔔 Echo: <b id="stat-echo">None</b></span>
+          <span>ATK: <b id="stat-atk">0</b></span><span>DEF: <b id="stat-def">0</b></span>
+          <span>HP: <b id="stat-hp">0</b></span><span>MP: <b id="stat-mp">0</b></span>
+          <span>Potions: <b id="stat-pot">0</b></span><span>Bag: <b id="stat-bag">0/50</b></span>
+          <span>Dust: <b id="stat-dust">0</b></span><span>AP: <b id="stat-ap">0</b></span>
+          <span>SP: <b id="stat-sp">0</b></span>
+          <span style="grid-column:1 / -1">Echo: <b id="stat-echo">None</b></span>
         </div>
       </div>
       <div id="inv-right">
@@ -74,16 +76,19 @@
           <button class="inv-tab" id="tab-rune" onclick="setInvFilter('rune')">Runes</button>
           <span style="color:#888;font-size:12px">Sort:</span>
           <select id="sort-select" onchange="sortInv()"><option value="rarity">Rarity</option><option value="type">Type</option><option value="power">Power</option><option value="name">Name</option></select>
-          <button class="inv-btn" onclick="sellAllCommon()">💰 Commons</button>
-          <button class="inv-btn" onclick="sellAllBag()">💰 Sell All</button>
-          <button class="inv-btn" id="inv-stash-btn" onclick="toggleStashMode()"><span id="stash-toggle-label">📦 Open Stash</span></button>
-          <button class="inv-btn" onclick="confirmSaveGame()">💾 Save</button>
-          <button class="inv-btn" onclick="confirmLoadGame()">⟳ Load</button>
-          <button class="inv-btn" id="inv-reclass-btn" onclick="openReclass()">🜂 Reclass</button>
-          <button class="inv-btn" onclick="openDebugMenu()">🐞 Debug</button>
-          <button class="inv-btn danger" onclick="dropAll()">🗑️ Drop All</button>
-          <span style="color:#666;font-size:11px">Click=Equip/Use · Right-click=Drop</span>
+          <button class="inv-btn" onclick="sellAllCommon()">Sell Commons</button>
+          <button class="inv-btn" onclick="sellAllBag()">Sell All</button>
+          <button class="inv-btn" id="salvage-common-btn" onclick="salvageAllCommon()">Salvage Commons</button>
+          <button class="inv-btn" id="salvage-all-btn" onclick="salvageAllGear()">Salvage All Gear</button>
+          <button class="inv-btn" id="inv-stash-btn" onclick="toggleStashMode()"><span id="stash-toggle-label">Open Stash</span></button>
+          <button class="inv-btn" onclick="confirmSaveGame()">Save</button>
+          <button class="inv-btn" onclick="confirmLoadGame()">Load</button>
+          <button class="inv-btn" id="inv-reclass-btn" onclick="openReclass()">Reclass</button>
+          <button class="inv-btn" onclick="openDebugMenu()">Debug</button>
+          <button class="inv-btn danger" onclick="dropAll()">Drop All</button>
+          <span style="color:#666;font-size:11px">Click=Equip/Use | Right-click=Drop</span>
         </div>
+        <div style="margin:0 0 6px"><button class="inv-btn" onclick="openSkillTree()">Skills</button></div>
         <div id="inv-grid"></div>
         <div id="stash-wrap" style="display:none">
           <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px">
@@ -103,31 +108,45 @@
     <button id="npc-close" onclick="closePanel()">[ Leave ]</button>
   </div>
   <div class="panel" id="lu-panel" style="display: none;">
-    <h2>⭐ LEVEL UP!</h2><p>Choose a blessing from the gods:</p>
+    <h2>LEVEL UP!</h2><p>Each level grants 1 attribute point. Every 10 levels grants 1 skill point.</p>
     <div id="perk-list"></div>
+  </div>
+  <div class="panel" id="skills-panel" style="display:none">
+    <div id="skills-head">
+      <div>
+        <h2>Skill Tree</h2>
+        <p id="skills-copy">Spend skill points to unlock permanent blessings across the four paths.</p>
+      </div>
+      <div id="skill-points-wrap"><span>Skill Points</span><b id="skill-points">0</b></div>
+    </div>
+    <div id="attribute-panel"></div>
+    <div id="subclass-chooser"></div>
+    <div id="skill-tree"></div>
+    <div id="skill-tree-owned"></div>
+    <button id="skills-close" onclick="closePanel()">Close [K]</button>
   </div>
   <div class="panel" id="class-panel" style="display: none;">
     <h2 id="class-panel-title">Choose Your Incarnation</h2>
     <p id="class-panel-copy">The fracture is still unstable. Choose which version of the Echo-Warrior answers the call, and Ravenwatch will arm that self for the descent ahead.</p>
-    <div id="class-list"><div class="class-card" style="--class-accent: #d36c45;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">🪓</span> Berserker</div><div class="class-role">Frontline Reaver</div></div><div class="class-pillar"><b>140</b><span>Vitality</span></div></div><div class="class-desc">Savage melee warrior who thrives in the thick of battle.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Berserker Axe, Leather Vest, and two Minor Heals.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Thrives in close combat with stronger melee damage and longer rage windows.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Best when you stay on top of enemies and force momentum.</div></div><div class="class-stats"><div class="class-stat"><b>140</b><span>HP</span></div><div class="class-stat"><b>14</b><span>ATK</span></div><div class="class-stat"><b>120</b><span>RUN</span></div></div><div class="class-select">Begin As Berserker</div></div><div class="class-card" style="--class-accent: #8fbf65;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">🏹</span> Ranger</div><div class="class-role">Mobile Hunter</div></div><div class="class-pillar"><b>95</b><span>Vitality</span></div></div><div class="class-desc">Fast hunter with deadly arrows and sharper critical strikes.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Hunter Longbow, Leather Vest, one heal, and one mana vial.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Excels with ranged power, bonus crit, and efficient sprint control.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Strongest when kiting, piercing lanes, and punishing openings.</div></div><div class="class-stats"><div class="class-stat"><b>2.50</b><span>SPD</span></div><div class="class-stat"><b>High</b><span>CRIT</span></div><div class="class-stat"><b>115</b><span>RUN</span></div></div><div class="class-select">Begin As Ranger</div></div><div class="class-card" style="--class-accent: #7ab8ff;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">🔮</span> Runecaster</div><div class="class-role">Arcane Conduit</div></div><div class="class-pillar"><b>90</b><span>Vitality</span></div></div><div class="class-desc">Mystic adept with stronger skills, richer mana, and arcane control.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Storm Staff, Runecarved Tome, two mana vials, and one heal.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Higher skill power, better mana economy, and shorter cooldown cycles.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Controls space with spells and scales hard with runes and mana.</div></div><div class="class-stats"><div class="class-stat"><b>145</b><span>MP</span></div><div class="class-stat"><b>9</b><span>ATK</span></div><div class="class-stat"><b>Boosted</b><span>SPELL</span></div></div><div class="class-select">Begin As Runecaster</div></div><div class="class-card" style="--class-accent: #d7b15c;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">🛡️</span> Guardian</div><div class="class-role">Bulwark Warden</div></div><div class="class-pillar"><b>125</b><span>Vitality</span></div></div><div class="class-desc">Stoic defender who shrugs off punishment and endures the dungeon.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Draugr Sword, Warden Mail, Thor's Helm, and two Minor Heals.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Natural damage reduction and trap resistance make every floor steadier.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Absorbs pressure, holds corridors, and outlasts brutal rooms.</div></div><div class="class-stats"><div class="class-stat"><b>8</b><span>DEF</span></div><div class="class-stat"><b>125</b><span>HP</span></div><div class="class-stat"><b>Heavy</b><span>WARD</span></div></div><div class="class-select">Begin As Guardian</div></div></div>
+    <div id="class-list"><div class="class-card" style="--class-accent: #d36c45;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">&#x1FA93;</span> Berserker</div><div class="class-role">Frontline Reaver</div></div><div class="class-pillar"><b>140</b><span>Vitality</span></div></div><div class="class-desc">Savage melee warrior who thrives in the thick of battle.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Berserker Axe, Leather Vest, and two Minor Heals.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Thrives in close combat with stronger melee damage and longer rage windows.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Best when you stay on top of enemies and force momentum.</div></div><div class="class-stats"><div class="class-stat"><b>140</b><span>HP</span></div><div class="class-stat"><b>14</b><span>ATK</span></div><div class="class-stat"><b>120</b><span>RUN</span></div></div><div class="class-select">Begin As Berserker</div></div><div class="class-card" style="--class-accent: #8fbf65;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">&#x1F3F9;</span> Ranger</div><div class="class-role">Mobile Hunter</div></div><div class="class-pillar"><b>95</b><span>Vitality</span></div></div><div class="class-desc">Fast hunter with deadly arrows and sharper critical strikes.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Hunter Longbow, Leather Vest, one heal, and one mana vial.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Excels with ranged power, bonus crit, and efficient sprint control.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Strongest when kiting, piercing lanes, and punishing openings.</div></div><div class="class-stats"><div class="class-stat"><b>2.50</b><span>SPD</span></div><div class="class-stat"><b>High</b><span>CRIT</span></div><div class="class-stat"><b>115</b><span>RUN</span></div></div><div class="class-select">Begin As Ranger</div></div><div class="class-card" style="--class-accent: #7ab8ff;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">&#x1F52E;</span> Runecaster</div><div class="class-role">Arcane Conduit</div></div><div class="class-pillar"><b>90</b><span>Vitality</span></div></div><div class="class-desc">Mystic adept with stronger skills, richer mana, and arcane control.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Storm Staff, Runecarved Tome, two mana vials, and one heal.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Higher skill power, better mana economy, and shorter cooldown cycles.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Controls space with spells and scales hard with runes and mana.</div></div><div class="class-stats"><div class="class-stat"><b>145</b><span>MP</span></div><div class="class-stat"><b>9</b><span>ATK</span></div><div class="class-stat"><b>Boosted</b><span>SPELL</span></div></div><div class="class-select">Begin As Runecaster</div></div><div class="class-card" style="--class-accent: #d7b15c;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">&#x1F6E1;&#xFE0F;</span> Guardian</div><div class="class-role">Bulwark Warden</div></div><div class="class-pillar"><b>125</b><span>Vitality</span></div></div><div class="class-desc">Stoic defender who shrugs off punishment and endures the dungeon.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Draugr Sword, Warden Mail, Thor's Helm, and two Minor Heals.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Natural damage reduction and trap resistance make every floor steadier.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Absorbs pressure, holds corridors, and outlasts brutal rooms.</div></div><div class="class-stats"><div class="class-stat"><b>8</b><span>DEF</span></div><div class="class-stat"><b>125</b><span>HP</span></div><div class="class-stat"><b>Heavy</b><span>WARD</span></div></div><div class="class-select">Begin As Guardian</div></div></div>
   </div>
   <div class="panel" id="chest-panel" style="display: none;">
-    <h3>📦 Treasure Chest!</h3><div id="chest-items"></div>
+    <h3>Treasure Chest!</h3><div id="chest-items"></div>
     <button id="chest-close" onclick="closePanel()">Collect All &amp; Close</button>
   </div>
   <div class="panel" id="upgrade-panel" style="display: none;">
-    <h3>⚒️ Upgrade Forge</h3><div id="upgrade-list"></div>
+    <h3>Upgrade Forge</h3><div id="upgrade-list"></div>
     <button id="upgrade-close" onclick="closePanel()">[ Leave Forge ]</button>
   </div>
   <div class="panel" id="shrine-panel" style="display: none;">
     <div id="shrine-portrait" style="font-size:40px;margin-bottom:8px">🔮</div>
-    <h3>✨ Sacred Shrine</h3>
+    <h3>Sacred Shrine</h3>
     <p id="shrine-text">The shrine pulses with ancient power. Choose your blessing.</p>
     <div id="shrine-opts"></div>
     <button id="shrine-close" onclick="closePanel()">[ Leave ]</button>
   </div>
   <div class="panel" id="puzzle-panel" style="display: none;">
-    <h3>🔑 Rune Lock</h3>
+    <h3>Rune Lock</h3>
     <p id="puzzle-desc">Study the sequence, then repeat it to unlock the vault.</p>
     <div id="rune-sequence"></div>
     <div id="puzzle-input"></div>
@@ -135,7 +154,7 @@
     <button id="puzzle-close" onclick="closePanel()">[ Abandon ]</button>
   </div>
   <div class="panel" id="descent-panel" style="display: none;">
-    <h3>🏆 Boss Defeated</h3>
+    <h3>Boss Defeated</h3>
     <p id="descent-text">The way forward lies open. Will you descend deeper or return to Midgard?</p>
     <div id="descent-actions" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button onclick="chooseDescent(true)">[ Descend Deeper ]</button>
@@ -152,16 +171,16 @@
     </div>
   </div>
   <div class="panel" id="debug-panel" style="display: none;">
-    <h3>🐞 Debug Arsenal</h3>
+    <h3>Debug Arsenal</h3>
     <p style="color:#aaa">Load test gear, jump floors, force a level, or fully reset the game state.</p>
     <div id="debug-actions" style="display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:8px;margin:12px 0"></div>
     <button id="debug-close" onclick="closePanel()">[ Close Debug ]</button>
   </div>
   <div id="death-screen">
-    <h1>☠️ YOU HAVE FALLEN</h1>
+    <h1>YOU HAVE FALLEN</h1>
     <p>The gods weep for another lost warrior...</p>
     <div class="stats" id="death-stats"></div>
-<button id="replay-btn" onclick="restartGame()">⚔️ Rise Again</button>
+<button id="replay-btn" onclick="restartGame()">Rise Again</button>
   </div>
   <div id="title-screen" style="display: none;">
   <div id="title-panel">
@@ -178,29 +197,49 @@
           <div class="fracture"></div>
           <div class="base"></div>
         </div>
-        <div class="title-scene-raven left"></div>
-        <div class="title-scene-raven right"></div>
-        <div class="title-scene-caption">Ravenwatch holds the wound shut</div>
+        <div class="title-scene-raven left huginn" aria-hidden="true">
+          <span class="raven-shadow"></span>
+          <span class="raven-body"></span>
+          <span class="raven-wing back"></span>
+          <span class="raven-wing front"></span>
+          <span class="raven-head"></span>
+          <span class="raven-beak"></span>
+          <span class="raven-eye"></span>
+          <span class="raven-leg left"></span>
+          <span class="raven-leg right"></span>
+        </div>
+        <div class="title-scene-raven right muninn" aria-hidden="true">
+          <span class="raven-shadow"></span>
+          <span class="raven-body"></span>
+          <span class="raven-wing back"></span>
+          <span class="raven-wing front"></span>
+          <span class="raven-head"></span>
+          <span class="raven-beak"></span>
+          <span class="raven-eye"></span>
+          <span class="raven-leg left"></span>
+          <span class="raven-leg right"></span>
+        </div>
+        <div class="title-scene-caption">Ravenwatch holds the fracture closed</div>
       </div>
       <div id="title-kicker">The Last Watch</div>
       <h1>Ragnarok's Edge</h1>
-      <div id="title-sub">A fallen Einherjar, phase-locked to Ravenwatch, sent into endless fractures to hold a dying multiverse together.</div>
+      <div id="title-sub">A fallen Einherjar bound to Ravenwatch, descending through broken routes and fractured ages to keep one dying cosmos from coming apart.</div>
       <div id="title-watchers">
         <div class="title-watcher">
           <b>Huginn</b>
           <span>Watcher of Thought</span>
-          <p>Measures your combat logic, your boons, and the shape your choices carve through the fracture.</p>
+          <p>Measures your choices, your discipline, and the shape of the path you cut through the fracture.</p>
         </div>
         <div class="title-watcher">
           <b>Muninn</b>
           <span>Watcher of Memory</span>
-          <p>Keeps the lodge, the stash, and the remembered climb. What survives the descent is written by his gaze.</p>
+          <p>Keeps the lodge, the stash, and the remembered climb. What returns from the descent is written in his keeping.</p>
         </div>
       </div>
       <div id="title-actions">
         <button class="title-btn" onclick="startNewJourney()">Begin New Journey</button>
         <button class="title-btn secondary" id="title-continue-btn" onclick="continueJourney()">Continue Watch</button>
-        <button class="title-btn tertiary" onclick="openTitleLore()">Opening Narrative & Fractures</button>
+        <button class="title-btn tertiary" onclick="openTitleLore()">Opening Narrative & The Broken Gate</button>
       </div>
     </div>
   </div></div>
@@ -210,15 +249,6 @@
 <script src="js/systems/sprite-loader.js"></script>
 <script src="js/game.js"></script>
 
-<script>
-// Initialize sprites after game loads
-window.addEventListener('load', async () => {
-  if (typeof initSpriteAssets === 'function') {
-    await initSpriteAssets();
-    console.log('🚀 Sprite System Initialized');
-  }
-});
-</script>
 </body>
 </html>
 

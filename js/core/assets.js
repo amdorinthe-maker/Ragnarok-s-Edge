@@ -11,6 +11,8 @@ const AssetLoader = {
     totalAssets: 0,
     onLoadComplete: null,
     isLoaded: false,
+    initPromise: null,
+    didFireLoadComplete: false,
 
     // Asset paths configuration
     paths: {
@@ -29,8 +31,26 @@ const AssetLoader = {
      * @param {Function} callback - Called when all assets are loaded
      */
     async init(callback) {
+        if (this.initPromise) {
+            if (callback) {
+                if (this.isLoaded) callback();
+                else this.onLoadComplete = callback;
+            }
+            return this.initPromise;
+        }
+
         this.onLoadComplete = callback;
-        await this.loadAllAssets();
+        this.loadedCount = 0;
+        this.totalAssets = 0;
+        this.isLoaded = false;
+        this.didFireLoadComplete = false;
+        this.images = {};
+        this.animations = {};
+        this.audio = {};
+
+        this.initPromise = this.loadAllAssets();
+        await this.initPromise;
+        return this.initPromise;
     },
 
     /**
@@ -41,8 +61,10 @@ const AssetLoader = {
             this.loadCharacterSprites(),
             this.loadEnemySprites(),
             this.loadNPCSprites(),
+            this.loadWatcherSprites(),
             this.loadWeaponSprites(),
             this.loadArmorSprites(),
+            this.loadHelmetSprites(),
             this.loadProjectileSprites(),
             this.loadVFXSprites(),
             this.loadShadowSprites(),
@@ -62,7 +84,11 @@ const AssetLoader = {
         if (this.totalAssets === 0) {
             console.warn('No assets found to load');
             this.isLoaded = true;
-            if (this.onLoadComplete) this.onLoadComplete();
+            this.initPromise = null;
+            if (this.onLoadComplete && !this.didFireLoadComplete) {
+                this.didFireLoadComplete = true;
+                this.onLoadComplete();
+            }
             return;
         }
 
@@ -120,9 +146,12 @@ const AssetLoader = {
      */
     onAssetLoaded() {
         this.loadedCount++;
-        if (this.loadedCount >= this.totalAssets && this.onLoadComplete) {
+        if (this.loadedCount >= this.totalAssets && this.onLoadComplete && !this.didFireLoadComplete) {
             this.isLoaded = true;
-            this.onLoadComplete();
+            this.didFireLoadComplete = true;
+            const onLoadComplete = this.onLoadComplete;
+            this.initPromise = null;
+            onLoadComplete();
         }
     },
 
@@ -160,9 +189,9 @@ const AssetLoader = {
         const assets = [];
 
         classes.forEach(cls => {
-            // Load body PNG
+            // Use the first idle frame as the static body fallback.
             const bodyKey = `${cls}_body`;
-            const bodySrc = `${this.paths.characters}${cls}_body.png`;
+            const bodySrc = `${this.paths.characters}${cls}/idle_01.png`;
             assets.push({ type: 'image', key: bodyKey, src: bodySrc });
             
             // Load shadow SVG
@@ -175,35 +204,45 @@ const AssetLoader = {
     },
 
     loadEnemySprites() {
-        const enemies = ['draugr', 'wolf'];
-        const bosses = ['boss_golem', 'boss_wolf'];
+        const enemies = [
+            'draugr',
+            'wolf',
+            'enemydarkelf',
+            'enemyfiredemon',
+            'enemyfrostgiant',
+            'enemyskeleton',
+            'enemytroll'
+        ];
+        const bosses = [
+            'boss_golem',
+            'boss_wolf',
+            'bossboneking',
+            'bossforgeguardian',
+            'bossgarmr',
+            'bosshel',
+            'bossjormungandr',
+            'bossmimirsecho',
+            'bossodinshadow',
+            'bosssurtr',
+            'bossveilscribe'
+        ];
         const assets = [];
-        
-        // Load animated enemies from folders
+
         enemies.forEach(enemy => {
-            // Load all animation frames for this enemy
-            const states = ['idle', 'walk', 'attack', 'hit', 'death'];
-            states.forEach(state => {
-                for (let i = 1; i <= 4; i++) {
-                    const key = `enemy_${enemy}_${state}_${String(i).padStart(2, '0')}`;
-                    const src = `${this.paths.enemies}${enemy}/${enemy}_${state}_${String(i).padStart(2, '0')}.svg`;
-                    assets.push({ type: 'image', key, src });
-                }
+            assets.push({
+                type: 'image',
+                key: enemy,
+                src: `${this.paths.enemies}${enemy}/idle_01.png`
             });
         });
-        
-        // Load boss animations
+
         bosses.forEach(boss => {
-            const states = ['idle', 'walk', 'attack', 'hit', 'death'];
-            states.forEach(state => {
-                for (let i = 1; i <= 4; i++) {
-                    const key = `enemy_${boss}_${state}_${String(i).padStart(2, '0')}`;
-                    const src = `${this.paths.enemies}${boss}/${boss}_${state}_${String(i).padStart(2, '0')}.svg`;
-                    assets.push({ type: 'image', key, src });
-                }
+            assets.push({
+                type: 'image',
+                key: boss,
+                src: `${this.paths.enemies}${boss}/idle_01.png`
             });
         });
-        
         // Add generic enemy shadow
         assets.push({ 
             type: 'image', 
@@ -215,12 +254,50 @@ const AssetLoader = {
     },
 
     loadWeaponSprites() {
-        const weapons = ['axe_basic', 'bow_basic', 'staff_basic', 'sword_basic'];
+        const weapons = [
+            { key: 'axe', src: 'axe.svg' },
+            { key: 'blade', src: 'blade.svg' },
+            { key: 'bow', src: 'bow_master.png' },
+            { key: 'arcane', src: 'arcane.svg' },
+            { key: 'dagger', src: 'dagger.svg' },
+            { key: 'hammer', src: 'hammer.svg' },
+            { key: 'pike', src: 'pike.svg' },
+            { key: 'berserker_axe', src: 'berserker_axe.svg' },
+            { key: 'draugr_sword', src: 'draugr_sword.svg' },
+            { key: 'frost_blade', src: 'frost_blade.svg' },
+            { key: 'hunter_longbow', src: 'bow_master.png' },
+            { key: 'bifrost_bow', src: 'bow_master.png' },
+            { key: 'skadi_longbow', src: 'bow_master.png' },
+            { key: 'ravenstorm_bow', src: 'bow_master.png' },
+            { key: 'mjolnir_echo', src: 'mjolnir_echo.svg' },
+            { key: 'worldbreaker_hammer', src: 'worldbreaker_hammer.svg' },
+            { key: 'stormbinder_hammer', src: 'stormbinder_hammer.svg' },
+            { key: 'runepiercer', src: 'runepiercer.svg' },
+            { key: 'gungnir_pike', src: 'gungnir_pike.svg' },
+            { key: 'worldroot_pike', src: 'worldroot_pike.svg' },
+            { key: 'gravewake_pike', src: 'gravewake_pike.svg' },
+            { key: 'storm_staff', src: 'storm_staff.svg' },
+            { key: 'mimir_staff', src: 'mimir_staff.svg' },
+            { key: 'voidseidr_tome', src: 'voidseidr_tome.svg' },
+            { key: 'starfire_staff', src: 'starfire_staff.svg' },
+            { key: 'surtr_brand', src: 'surtr_brand.svg' },
+            { key: 'tyrfing_blade', src: 'tyrfing_blade.svg' },
+            { key: 'skullsplitter_axe', src: 'skullsplitter_axe.svg' },
+            { key: 'hrimnir_axe', src: 'hrimnir_axe.svg' },
+            { key: 'oathcleaver_axe', src: 'oathcleaver_axe.svg' },
+            { key: 'helfang_dagger', src: 'helfang_dagger.svg' },
+            { key: 'nightveil_dagger', src: 'nightveil_dagger.svg' },
+            { key: 'raven_talon_dagger', src: 'raven_talon_dagger.svg' },
+            { key: 'axe_basic', src: 'axe_basic.svg' },
+            { key: 'bow_basic', src: 'bow_basic.svg' },
+            { key: 'staff_basic', src: 'staff_basic.svg' },
+            { key: 'sword_basic', src: 'sword_basic.svg' }
+        ];
         const assets = [];
 
         weapons.forEach(weapon => {
-            const key = `weapon_${weapon}`;
-            const src = `${this.paths.weapons}${weapon}.svg`;
+            const key = `weapon_${weapon.key}`;
+            const src = `${this.paths.weapons}${weapon.src}`;
             assets.push({ type: 'image', key, src });
         });
 
@@ -228,7 +305,17 @@ const AssetLoader = {
     },
 
     loadArmorSprites() {
-        const armors = ['leather_vest', 'warden_mail'];
+        const armors = [
+            'leather_vest',
+            'warden_mail',
+            'ashen_cuirass',
+            'barrow_plate',
+            'dragon_scale',
+            'helwoven_shroud',
+            'seidr_mantle',
+            'serpent_scale',
+            'valkyrie_plate'
+        ];
         const assets = [];
 
         armors.forEach(armor => {
@@ -267,19 +354,47 @@ const AssetLoader = {
         return assets;
     },
 
+    loadHelmetSprites() {
+        const helms = [
+            'allfather_sigil',
+            'death_helm',
+            'moonveil_hood',
+            'ravenguard_helm',
+            'skald_hood',
+            'thor_helm',
+            'wolf_pelt'
+        ];
+        const assets = [];
+
+        helms.forEach(helm => {
+            const key = `helm_${helm}`;
+            const src = `${this.paths.armor}${helm}.svg`;
+            assets.push({ type: 'image', key, src });
+        });
+
+        return assets;
+    },
+
+    loadWatcherSprites() {
+        return [
+            { type: 'image', key: 'watcher_huginn', src: `${this.paths.characters}watcher_huginn.svg` },
+            { type: 'image', key: 'watcher_muninn', src: `${this.paths.characters}watcher_muninn.svg` }
+        ];
+    },
+
     loadProjectileSprites() {
         const projectiles = [
-            { name: 'arrow', key: 'projectile_arrow' },
-            { name: 'fireball', key: 'projectile_fireball' },
-            { name: 'ice_shard', key: 'projectile_ice_shard' },
-            { name: 'axe', key: 'projectile_axe' },
-            { name: 'arcane_orb', key: 'projectile_arcane_orb' }
+            { png: 'proj_arrow_01', svg: 'arrow', key: 'projectile_arrow' },
+            { png: 'proj_fireball_01', svg: 'fireball', key: 'projectile_fireball' },
+            { png: 'proj_ice_shard_01', svg: 'ice_shard', key: 'projectile_ice_shard' },
+            { png: 'proj_axe_01', svg: 'axe', key: 'projectile_axe' },
+            { png: 'proj_arcane_orb_01', svg: 'arcane_orb', key: 'projectile_arcane_orb' }
         ];
         const assets = [];
 
         projectiles.forEach(proj => {
-            const src = `${this.paths.projectiles}${proj.name}.svg`;
-            assets.push({ type: 'image', key: proj.key, src });
+            assets.push({ type: 'image', key: proj.key, src: `${this.paths.projectiles}${proj.png}.png` });
+            assets.push({ type: 'image', key: `${proj.key}_fallback`, src: `${this.paths.projectiles}${proj.svg}.svg` });
         });
 
         return assets;
@@ -304,27 +419,10 @@ const AssetLoader = {
     },
 
     loadAudioFiles() {
-        // Audio files are in subdirectories (sfx/ and music/)
-        const sounds = [
-            'melee', 'hit', 'arrow', 'arcane', 'potion'
-        ];
-        const assets = [];
-
-        sounds.forEach(sound => {
-            const key = `sfx_${sound}`;
-            const src = `${this.paths.audio}sfx/${sound}.wav`;
-            assets.push({ type: 'audio', key, src });
-        });
-
-        // Music tracks
-        const music = ['dungeon', 'world', 'boss'];
-        music.forEach(track => {
-            const key = `music_${track}`;
-            const src = `${this.paths.audio}music/${track}.ogg`;
-            assets.push({ type: 'audio', key, src });
-        });
-
-        return assets;
+        // The game currently uses WebAudio synthesis in game.js.
+        // Skip file-audio preloads here to avoid browser 416/media errors
+        // from placeholder or partial audio files in the assets folder.
+        return [];
     },
 
     /**
@@ -355,6 +453,57 @@ const AssetLoader = {
         this.animations[key].length = frames.length;
     },
 
+    async loadAnimationSequenceCandidates(key, pathPatterns, start, end) {
+        const frames = [];
+        let chosenPatternIndex = -1;
+        let firstLoadedFrame = null;
+        let lastLoadedFrame = null;
+
+        for (let i = start; i <= end; i++) {
+            const frameNum = i.toString().padStart(2, '0');
+            let loadedFrame = null;
+
+            if (chosenPatternIndex >= 0) {
+                const chosenPath = pathPatterns[chosenPatternIndex].replace('{frame}', frameNum);
+                try {
+                    loadedFrame = await this.loadImage(chosenPath);
+                } catch (e) {
+                    loadedFrame = lastLoadedFrame || firstLoadedFrame || null;
+                }
+            } else {
+                for (let patternIndex = 0; patternIndex < pathPatterns.length; patternIndex++) {
+                    const fullPath = pathPatterns[patternIndex].replace('{frame}', frameNum);
+                    try {
+                        loadedFrame = await this.loadImage(fullPath);
+                        chosenPatternIndex = patternIndex;
+                        break;
+                    } catch (e) {}
+                }
+            }
+
+            if (loadedFrame) {
+                if (!firstLoadedFrame) firstLoadedFrame = loadedFrame;
+                lastLoadedFrame = loadedFrame;
+            }
+
+            if (!loadedFrame && pathPatterns.length && !firstLoadedFrame) {
+                console.warn(`Missing animation frame: ${pathPatterns[0].replace('{frame}', frameNum)}`);
+            }
+
+            frames.push(loadedFrame || lastLoadedFrame || firstLoadedFrame || null);
+        }
+
+        if (firstLoadedFrame) {
+            for (let i = 0; i < frames.length; i++) {
+                if (!frames[i]) frames[i] = firstLoadedFrame;
+            }
+        }
+
+        if (!this.animations[key]) this.animations[key] = {};
+        this.animations[key].frames = frames;
+        this.animations[key].length = frames.length;
+    },
+
     /**
      * Helper to load a single image (promise-based)
      */
@@ -373,13 +522,38 @@ const AssetLoader = {
     async loadCharacterAnimations() {
         const classes = ['berserker', 'ranger', 'runecaster', 'guardian'];
         const states = ['idle', 'walk', 'run', 'attack', 'hit', 'death'];
+        const attackVariants = ['melee', 'ranged', 'magic', 'shield'];
         
         for (const cls of classes) {
             for (const state of states) {
-                // Expecting path like: assets/characters/berserker/berserker_idle_{frame}.svg
-                const path = `assets/characters/${cls}/${cls}_${state}_{frame}{ext}`;
-                // Assuming 4 frames per animation for now
-                await this.loadAnimationSequence(`${cls}_${state}`, path, 1, 4, '.svg');
+                let patterns = [];
+                if (state === 'attack') {
+                    const attackMap = {
+                        berserker: 'attack_melee',
+                        ranger: 'attack_ranged',
+                        runecaster: 'attack_magic',
+                        guardian: 'attack_shield'
+                    };
+                    patterns = [
+                        `assets/characters/${cls}/${attackMap[cls]}_{frame}.png`,
+                        `assets/characters/${cls}/attack_{frame}.png`,
+                        `assets/characters/${cls}/${cls}_attack_{frame}.svg`
+                    ];
+                } else {
+                    patterns = [
+                        `assets/characters/${cls}/${state}_{frame}.png`,
+                        `assets/characters/${cls}/${cls}_${state}_{frame}.svg`
+                    ];
+                }
+                await this.loadAnimationSequenceCandidates(`${cls}_${state}`, patterns, 1, 4);
+            }
+
+            for (const variant of attackVariants) {
+                const variantPatterns = [
+                    `assets/characters/${cls}/attack_${variant}_{frame}.png`,
+                    `assets/characters/${cls}/${cls}_attack_${variant}_{frame}.svg`
+                ];
+                await this.loadAnimationSequenceCandidates(`${cls}_attack_${variant}`, variantPatterns, 1, 4);
             }
         }
     },
@@ -388,13 +562,35 @@ const AssetLoader = {
      * Load Enemy Animations
      */
     async loadEnemyAnimations() {
-        const enemies = ['draugr', 'wolf', 'boss_golem', 'boss_wolf'];
+        const enemies = [
+            'draugr',
+            'wolf',
+            'enemydarkelf',
+            'enemyfiredemon',
+            'enemyfrostgiant',
+            'enemyskeleton',
+            'enemytroll',
+            'boss_golem',
+            'boss_wolf',
+            'bossboneking',
+            'bossforgeguardian',
+            'bossgarmr',
+            'bosshel',
+            'bossjormungandr',
+            'bossmimirsecho',
+            'bossodinshadow',
+            'bosssurtr',
+            'bossveilscribe'
+        ];
         const states = ['idle', 'walk', 'attack', 'hit', 'death'];
 
         for (const enemy of enemies) {
             for (const state of states) {
-                const path = `assets/enemies/${enemy}/${enemy}_${state}_{frame}{ext}`;
-                await this.loadAnimationSequence(`${enemy}_${state}`, path, 1, 4, '.svg');
+                const patterns = [
+                    `assets/enemies/${enemy}/${state}_{frame}.png`,
+                    `assets/enemies/${enemy}/${enemy}_${state}_{frame}.svg`
+                ];
+                await this.loadAnimationSequenceCandidates(`${enemy}_${state}`, patterns, 1, 4);
             }
         }
     },
@@ -408,8 +604,21 @@ const AssetLoader = {
 
         for (const npc of npcs) {
             for (const state of states) {
-                const path = `assets/characters/npcs/npc_${npc}_${state}_{frame}{ext}`;
-                await this.loadAnimationSequence(`npc_${npc}_${state}`, path, 1, 4, '.svg');
+                let patterns = [];
+                if (state === 'talk') {
+                    patterns = [
+                        `assets/characters/npc_${npc}_wave_{frame}.png`,
+                        `assets/characters/npc_${npc}_cast_{frame}.png`,
+                        `assets/characters/npc_${npc}_attack_{frame}.png`,
+                        `assets/characters/npcs/npc_${npc}_${state}_{frame}.svg`
+                    ];
+                } else {
+                    patterns = [
+                        `assets/characters/npc_${npc}_${state}_{frame}.png`,
+                        `assets/characters/npcs/npc_${npc}_${state}_{frame}.svg`
+                    ];
+                }
+                await this.loadAnimationSequenceCandidates(`npc_${npc}_${state}`, patterns, 1, 4);
             }
         }
     },
@@ -425,7 +634,7 @@ const AssetLoader = {
         if (!anim || !anim.frames || anim.frames.length === 0) return null;
         
         const frameIndex = Math.floor((time / 1000) * fps) % anim.frames.length;
-        return anim.frames[frameIndex];
+        return anim.frames[frameIndex] || anim.frames.find(Boolean) || null;
     }
 };
 
