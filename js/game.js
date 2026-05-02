@@ -12,6 +12,8 @@ const DT={FLOOR:0,WALL:1,DOOR:2,CHEST:3,TRAP:4,TORCH:5,BOSS_DOOR:6,STAIRS:7,SPIK
           SECRET_WALL:11,SHRINE:12,PUZZLE:13,POISON_VENT:14,ARROW_TRAP:15,RUNE_TILE:16,ELITE_MARKER:17,ARMORY:18,CRYPT:19,EVENT:20};
 const MAX_FLOORS=25;
 const BOSS_INTERVAL=10;
+const CHAR_H=88;
+const CHAR_OVERLAY_SCALE=CHAR_H/72;
 
 // â”€â”€ ITEMS & POTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const POTIONS=[
@@ -420,7 +422,7 @@ function initAudioUI(){
 }
 function currentBossFamily(){
   if(bossRef?.family)return bossRef.family;
-  if(inDungeon&&(bossActive||bossReady))return currentDungeonBossDef()?.family||'grave';
+  if(inDungeon&&(bossPhase==='active'||bossPhase==='ready'))return currentDungeonBossDef()?.family||'grave';
   return '';
 }
 function currentAmbienceProfile(){
@@ -433,7 +435,7 @@ function currentAmbienceProfile(){
     :route==='seer'
       ?{drone:174,shimmer:348,rumble:63,noise:980,droneGain:.022,shimmerGain:.02,rumbleGain:.003,noiseGain:.012}
       :{drone:98,shimmer:196,rumble:52,noise:720,droneGain:.026,shimmerGain:.009,rumbleGain:.006,noiseGain:.02};
-  if(bossActive||bossReady){
+  if(bossPhase==='active'||bossPhase==='ready'){
     profile.drone*=route==='ember'?1.06:.97;
     profile.shimmer*=1.08;
     profile.rumbleGain*=2.1;
@@ -498,7 +500,7 @@ function ambientEventName(){
   if(!inDungeon){
     return Math.random()<.58?'midgardWind':'midgardRaven';
   }
-  if(bossActive||bossReady){
+  if(bossPhase==='active'||bossPhase==='ready'){
     let family=currentBossFamily();
     if(family==='wolf')return'bossWolf';
     if(family==='grave'||family==='veil')return'bossGrave';
@@ -513,7 +515,7 @@ function ambientEventName(){
 function updateAmbientEvents(dt){
   if(!USE_SYNTH_SFX)return;
   if(audioPrefs.muted||!audioCtx||!audioAmbGain)return;
-  let bossState=(bossActive||bossReady)?`${inDungeon?'d':'w'}:${currentBossFamily()}`:'';
+  let bossState=(bossPhase==='active'||bossPhase==='ready')?`${inDungeon?'d':'w'}:${currentBossFamily()}`:'';
   if(bossState&&bossState!==lastAmbientBossState){
     playAmbientEvent(ambientEventName(),1.2);
     ambienceEventTimer=3200+Math.random()*1800;
@@ -1259,12 +1261,12 @@ const MIDGARD_SITES=[
   MIDGARD_SITES.forEach(site=>addLandmark(site.name,site.x,site.y,site.icon,site.kind,site));
   addLandmark('Hall of Echoes',sx-11,sy+3,'E','sanctum',{name:'Hall of Echoes',x:sx-11,y:sy+3,icon:'E',kind:'sanctum',actionLabel:'Consecrate'});
   npcList=[
-    {wx:(sx-3)*T,wy:(sy+6)*T+6,name:'Bjorn the Smith',icon:'BJ',col:'#c8a000',dialog:0,role:'Forgekeeper',location:'Skald\'s Hearth',shopTitle:'Forge Wares',shopFlavor:'Weapons, armor, and sturdy supplies for delving below Midgard.',shopItems:[makeItem(5,1,1),makeItem(7,1,1),makeItem(1,1,1),makeItem(11,1,1)],isDungeon:false},
-    {wx:(sx-9)*T,wy:(sy-3)*T+10,name:'Freya the Seer',icon:'FR',col:'#9b30ff',dialog:1,role:'Runespeaker',location:'Jarl\'s Lodge',shopTitle:'Runes & Elixirs',shopFlavor:'Runic charms, mana tonics, and relics for mystics and risk-takers.',shopItems:[makeItem(8,1,1),makeItem(10,1,1),{...POTIONS[3]},{...POTIONS[4]}],isDungeon:false},
-    {wx:(sx+5)*T,wy:(sy-5)*T+12,name:'Leif the Scout',icon:'LF',col:'#4a8b4a',dialog:2,role:'Pathfinder',location:'War Hall',shopTitle:'Trail Provisions',shopFlavor:'Field gear, light blades, and survivability tools for the roads of Midgard.',shopItems:[makeItem(14,1,1),makeItem(4,1,1),{...POTIONS[0]},{...POTIONS[1]}],isDungeon:false},
-    {wx:(sx+9)*T,wy:(sy-3)*T+10,name:'Sigrid the Elder',icon:'SG',col:'#c8a000',dialog:3,role:'Lorekeeper',location:'War Hall',shopTitle:'Relics & Remedies',shopFlavor:'Old wisdom, rare draughts, and relics gathered from sacred sites.',shopItems:[makeItem(8,1,1),makeItem(12,1,1),{...POTIONS[1]},{...POTIONS[3]}],isDungeon:false},
-    {wx:(sx-5)*T,wy:(sy-5)*T+12,name:'Ivar the Wanderer',icon:'IV',col:'#8b6900',dialog:4,role:'Road Merchant',location:'Jarl\'s Lodge',shopTitle:'Traveler\'s Cache',shopFlavor:'A small but useful stash of wares for long walks and bad odds.',shopItems:[makeItem(4,1,1),makeItem(11,1,1),{...POTIONS[0]},{...POTIONS[3]}],isDungeon:false},
-    {wx:(sx+3)*T,wy:(sy+6)*T+6,name:'Gunnar the Berserker',icon:'GN',col:'#cc2200',dialog:5,role:'War-Trainer',location:'Skald\'s Hearth',shopTitle:'Battle Stock',shopFlavor:'Heavy steel, bruiser gear, and extra healing before the deeper fights.',shopItems:[makeItem(0,1,1),makeItem(15,1,1),{...POTIONS[0]},{...POTIONS[1]}],isDungeon:false},
+    {wx:(sx-4)*T,wy:(sy+7)*T+6,name:'Bjorn the Smith',icon:'BJ',col:'#c8a000',dialog:0,role:'Forgekeeper',location:'Skald\'s Hearth',shopTitle:'Forge Wares',shopFlavor:'Weapons, armor, and sturdy supplies for delving below Midgard.',shopItems:[makeItem(5,1,1),makeItem(7,1,1),makeItem(1,1,1),makeItem(11,1,1)],isDungeon:false},
+    {wx:(sx-10)*T,wy:(sy-2)*T+10,name:'Freya the Seer',icon:'FR',col:'#9b30ff',dialog:1,role:'Runespeaker',location:'Jarl\'s Lodge',shopTitle:'Runes & Elixirs',shopFlavor:'Runic charms, mana tonics, and relics for mystics and risk-takers.',shopItems:[makeItem(8,1,1),makeItem(10,1,1),{...POTIONS[3]},{...POTIONS[4]}],isDungeon:false},
+    {wx:(sx+4)*T,wy:(sy-6)*T+12,name:'Leif the Scout',icon:'LF',col:'#4a8b4a',dialog:2,role:'Pathfinder',location:'War Hall',shopTitle:'Trail Provisions',shopFlavor:'Field gear, light blades, and survivability tools for the roads of Midgard.',shopItems:[makeItem(14,1,1),makeItem(4,1,1),{...POTIONS[0]},{...POTIONS[1]}],isDungeon:false},
+    {wx:(sx+5)*T,wy:(sy-2)*T+14,name:'Sigrid the Elder',icon:'SG',col:'#c8a000',dialog:3,role:'Lorekeeper',location:'War Hall',shopTitle:'Relics & Remedies',shopFlavor:'Old wisdom, rare draughts, and relics gathered from sacred sites.',shopItems:[makeItem(8,1,1),makeItem(12,1,1),{...POTIONS[1]},{...POTIONS[3]}],isDungeon:false},
+    {wx:(sx-4)*T,wy:(sy-6)*T+12,name:'Ivar the Wanderer',icon:'IV',col:'#8b6900',dialog:4,role:'Road Merchant',location:'Jarl\'s Lodge',shopTitle:'Traveler\'s Cache',shopFlavor:'A small but useful stash of wares for long walks and bad odds.',shopItems:[makeItem(4,1,1),makeItem(11,1,1),{...POTIONS[0]},{...POTIONS[3]}],isDungeon:false},
+    {wx:(sx+4)*T,wy:(sy+7)*T+6,name:'Gunnar the Berserker',icon:'GN',col:'#cc2200',dialog:5,role:'War-Trainer',location:'Skald\'s Hearth',shopTitle:'Battle Stock',shopFlavor:'Heavy steel, bruiser gear, and extra healing before the deeper fights.',shopItems:[makeItem(0,1,1),makeItem(15,1,1),{...POTIONS[0]},{...POTIONS[1]}],isDungeon:false},
   ];
 }
 function setTile(x,y,t){if(x>=0&&x<WS&&y>=0&&y<WS)world[y][x]=t;}
@@ -2067,8 +2069,7 @@ let panel=null;
 let returnToTitleOnClose=false;
 let invFilter='all';
 let debugGodMode=false;
-let bossRef=null,bossActive=false,bossReady=false,bossRoomAnnounced=false,bossSpawned=false,bossDefeated=false,bossSealPending=false,pendingBossChoice=false;
-let waveTimer=6000,waveDuration=6000,wave=0;
+let bossRef=null,bossPhase='idle',bossRoomAnnounced=false,bossSealPending=false,pendingBossChoice=false;
 let dead=false,paused=false;
 let inDungeon=false,dungeonFloor=1,lastDungeonEntrance=null;
 let activeDungeonRouteId='barrow';
@@ -2088,7 +2089,7 @@ function isProjectileInActiveMode(p){return inDungeon?p.isDungeon===true:!p.isDu
 function syncBossStateToMode(){
   if(bossRef&&!isEnemyInActiveMode(bossRef)){
     bossRef=null;
-    bossActive=false;
+    bossPhase='idle';
     clearBossUI();
   }
 }
@@ -3120,7 +3121,7 @@ function drawPlayerFigure(sx,sy){
   let aimAng=Math.atan2(fy,fx);
   let isMelee=ws.id!=='bow'&&ws.id!=='arcane';
   let attackPose=Math.min(1,(P.attackPoseTimer||0)/170);
-  let attackEase=1-Math.pow(1-attackPose,2);
+  let attackEase=attackEaseForStyle(attackPose,ws.id);
   let side=P.facing.x>=0?1:-1;
   let moving=!!(keys['w']||keys['ArrowUp']||keys['s']||keys['ArrowDown']||keys['a']||keys['ArrowLeft']||keys['d']||keys['ArrowRight']);
   let runFactor=P.sprinting?1.5:1;
@@ -3724,7 +3725,7 @@ function drawPlayerSprite(sx, sy) {
   let aimAng = Math.atan2(fy, fx);
   let side = fx >= 0 ? 1 : -1;
   let attackPose = Math.min(1, (P.attackPoseTimer || 0) / 170);
-  let attackEase = 1 - Math.pow(1 - attackPose, 2);
+  let attackEase = attackEaseForStyle(attackPose, ws.id);
   let moving = !!(keys['w'] || keys['ArrowUp'] || keys['s'] || keys['ArrowDown'] || keys['a'] || keys['ArrowLeft'] || keys['d'] || keys['ArrowRight']);
   let runFactor = P.sprinting ? 1.5 : 1;
   let gaitTime = Date.now() / (moving ? (P.sprinting ? 85 : 130) : 320);
@@ -3792,7 +3793,7 @@ function drawPlayerSprite(sx, sy) {
     animKey = `${classId}_${bodyMaskState}`;
     playerAnimFps = classId === 'guardian' ? 5 : moving ? 8 : 5;
   }
-  if (classId !== 'guardian' && animState === 'attack' && AssetLoader?.animations?.[`${classId}_attack_${attackAnimStyle}`]?.frames?.find(Boolean)) {
+  if (animState === 'attack' && AssetLoader?.animations?.[`${classId}_attack_${attackAnimStyle}`]?.frames?.find(Boolean)) {
     if (!useMovementAttackFallback) {
       animKey = `${classId}_attack_${attackAnimStyle}`;
     }
@@ -3818,7 +3819,7 @@ function drawPlayerSprite(sx, sy) {
         : bodyImg;
     let baseWidth = Math.max(1, bodyImg.width);
     let baseHeight = Math.max(1, bodyImg.height);
-    let bodyScale = Math.min(72 / baseWidth, 72 / baseHeight);
+    let bodyScale = Math.min(CHAR_H / baseWidth, CHAR_H / baseHeight);
     let bodyWidth = baseWidth * bodyScale;
     let bodyHeight = baseHeight * bodyScale;
     let drawY = sy - bodyHeight * 0.72;
@@ -3852,39 +3853,47 @@ function drawPlayerSprite(sx, sy) {
   if (!suppressHeldWeapon && weaponImg && weaponImg.complete && weaponImg.naturalWidth > 0) {
     let isMelee = ws.id !== 'bow' && ws.id !== 'arcane';
     let profile = getWeaponRenderProfile(weaponKey, ws, classId);
-    let carryBase = side > 0 ? 0.92 : Math.PI - 0.92;
-    let restOffset = profile.rest;
-    let swingOffset = profile.swing;
-    let reachIdle = profile.reachIdle;
-    let reachAtk = profile.reachAtk;
-    let restAng = isMelee ? carryBase + (restOffset - 1.7) * 0.45 : aimAng + restOffset;
-    let swingAng = aimAng + swingOffset;
-    if (classId === 'guardian' && isMelee) {
-      swingAng -= 0.18;
+    let handX, handY, ang, finalRot, weaponSize, gripX, gripY;
+    if (ws.id === 'bow') {
+      let bowPose = getBowPose(classId, P.equip.weapon, sx, sy);
+      handX = bowPose.handX;
+      handY = bowPose.handY;
+      ang = bowPose.ang;
+      finalRot = bowPose.finalRot;
+      weaponSize = bowPose.weaponSize;
+      gripX = bowPose.gripX;
+      gripY = bowPose.gripY;
+    } else {
+      let carryBase = side > 0 ? 0.92 : Math.PI - 0.92;
+      let restOffset = profile.rest;
+      let swingOffset = profile.swing;
+      let reachIdle = profile.reachIdle;
+      let reachAtk = profile.reachAtk;
+      let restAng = isMelee ? carryBase + (restOffset - 1.7) * 0.45 : aimAng + restOffset;
+      let swingAng = aimAng + swingOffset;
+      if (classId === 'guardian' && isMelee) {
+        swingAng -= 0.18;
+      }
+      ang = restAng + (swingAng - restAng) * attackEase;
+      let armReach = reachIdle + (reachAtk - reachIdle) * attackEase;
+      if (classId === 'guardian' && isMelee) {
+        armReach += attackEase * 4;
+      }
+      let holdLift = profile.holdLift ?? (ws.id === 'bow' ? 9 : ws.id === 'arcane' ? 10 : 6);
+      handX = sx + Math.cos(ang) * armReach;
+      handY = sy + Math.sin(ang) * armReach - holdLift;
+      finalRot = ang;
+      weaponSize = profile.size;
+      gripX = weaponSize * profile.gripX;
+      gripY = weaponSize * profile.gripY;
     }
-    let ang = restAng + (swingAng - restAng) * attackEase;
-    let armReach = reachIdle + (reachAtk - reachIdle) * attackEase;
-    if (classId === 'guardian' && isMelee) {
-      armReach += attackEase * 4;
-    }
-    let holdLift = profile.holdLift ?? (ws.id === 'bow' ? 9 : ws.id === 'arcane' ? 10 : 6);
-    let handX = sx + Math.cos(ang) * armReach;
-    let handY = sy + Math.sin(ang) * armReach - holdLift;
     
     ctx.save();
     ctx.translate(handX, handY);
-    let assetRot = profile.assetRot || 0;
-    if (ws.id === 'bow' && assetRot) {
-      assetRot = assetRot * Math.abs(fy);
-    }
-    ctx.rotate(ang + assetRot);
-    
-    let weaponSize = profile.size;
-    let gripX = weaponSize * profile.gripX;
-    let gripY = weaponSize * profile.gripY;
+    ctx.rotate(finalRot);
 
     if (ws.id === 'bow') {
-      let drawX = -gripX + weaponSize * (profile.drawShiftX ?? -0.08);
+      let drawX = -gripX + weaponSize * ((profile.drawShiftX ?? -0.08));
       let drawY = -gripY;
       ctx.drawImage(weaponImg, drawX, drawY, weaponSize, weaponSize);
     } else if (ws.id === 'arcane') {
@@ -3911,11 +3920,11 @@ function drawPlayerSprite(sx, sy) {
     let armorImg = AssetLoader.getImage(armorKey);
     if (armorImg && armorImg.complete && armorImg.naturalWidth > 0) {
       let armorProfile = getArmorRenderProfile(P.equip.armor, classId);
-      let armorHeight = armorProfile.h;
-      let armorWidth = armorProfile.w;
+      let armorHeight = armorProfile.h * CHAR_OVERLAY_SCALE;
+      let armorWidth = armorProfile.w * CHAR_OVERLAY_SCALE;
       let drawX = sx - armorWidth / 2 + fx * (attackEase * 4);
-      let drawY = sy + armorProfile.y;
-      
+      let drawY = sy + armorProfile.y * CHAR_OVERLAY_SCALE;
+
       ctx.globalAlpha = armorProfile.alpha;
       ctx.drawImage(armorImg, drawX, drawY, armorWidth, armorHeight);
       ctx.globalAlpha = 1.0;
@@ -3925,10 +3934,10 @@ function drawPlayerSprite(sx, sy) {
     let helmKey = getHelmAssetKey(P.equip.helm);
     let helmImg = AssetLoader.getImage(helmKey);
     if (helmImg && helmImg.complete && helmImg.naturalWidth > 0) {
-      let helmHeight = 24;
-      let helmWidth = 24;
+      let helmHeight = 24 * CHAR_OVERLAY_SCALE;
+      let helmWidth = 24 * CHAR_OVERLAY_SCALE;
       let drawX = sx - helmWidth / 2 + fx * (attackEase * 2);
-      let drawY = sy - helmHeight - 18;
+      let drawY = sy - helmHeight - 18 * CHAR_OVERLAY_SCALE;
       ctx.globalAlpha = 0.92;
       ctx.drawImage(helmImg, drawX, drawY, helmWidth, helmHeight);
       ctx.globalAlpha = 1.0;
@@ -4211,7 +4220,7 @@ function drawProjectileSprite(p, sx, sy) {
       ctx.stroke();
     } else {
       // Default fallback for unknown types
-      if (p.owner === 'enemy' && (p.bossAffixes?.length || bossActive)) {
+      if (p.owner === 'enemy' && (p.bossAffixes?.length || bossPhase === 'active')) {
         drawGlow(sx, sy, 16, 'rgb(255,90,90)', 0.12);
       }
       ctx.fillStyle = p.col;
@@ -4289,7 +4298,7 @@ function drawProjectileSprite(p, sx, sy) {
     
     // Add glow effects based on type
     if (p.type === 'arcane' || p.type === 'veil') {
-      let bossShot = p.owner === 'enemy' && (p.bossAffixes?.length || bossActive);
+      let bossShot = p.owner === 'enemy' && (p.bossAffixes?.length || bossPhase === 'active');
       let shimmer = 0.75 + Math.sin(Date.now() / 85 + travel * 0.08) * 0.25;
       let arcGlow = p.glowColor || (bossShot ? 'rgb(255,110,110)' : 'rgb(159,140,255)');
       drawGlow(0, 0, bossShot ? 22 : 18, arcGlow, bossShot ? 0.18 : 0.14);
@@ -4362,7 +4371,7 @@ function drawProjectileSprite(p, sx, sy) {
       ctx.font = '13px sans-serif';
       ctx.fillText('ðŸª“', sx - 6, sy + 5);
     } else if (p.type === 'arcane') {
-      let bossShot = p.owner === 'enemy' && (p.bossAffixes?.length || bossActive);
+      let bossShot = p.owner === 'enemy' && (p.bossAffixes?.length || bossPhase === 'active');
       drawGlow(sx, sy, bossShot ? 22 : 18, bossShot ? 'rgb(255,110,110)' : 'rgb(159,140,255)', bossShot ? 0.18 : 0.14);
       ctx.fillStyle = 'rgba(255,255,255,.22)';
       ctx.beginPath();
@@ -4436,7 +4445,7 @@ function drawProjectileSprite(p, sx, sy) {
       ctx.arc(sx, sy, p.sz + 4, 0, Math.PI * 2);
       ctx.stroke();
     } else {
-      if (p.owner === 'enemy' && (p.bossAffixes?.length || bossActive)) {
+      if (p.owner === 'enemy' && (p.bossAffixes?.length || bossPhase === 'active')) {
         drawGlow(sx, sy, 16, 'rgb(255,90,90)', 0.12);
       }
       ctx.fillStyle = p.col;
@@ -4453,6 +4462,14 @@ function getPlayerProjectileOrigin(ws=null){
   ws = ws || getWeaponStyle();
   let px = inDungeon ? dPlayer.x : P.x;
   let py = inDungeon ? dPlayer.y : P.y;
+  if (ws.id === 'bow') {
+    let bowPose = getBowPose(P.classId, P.equip.weapon, px, py);
+    let muzzle = bowPose.weaponSize * 0.34;
+    return {
+      x: bowPose.handX + Math.cos(bowPose.finalRot) * muzzle,
+      y: bowPose.handY + Math.sin(bowPose.finalRot) * muzzle
+    };
+  }
   let fx = P.facing.x || 1;
   let fy = P.facing.y || 0;
   let plen = Math.max(0.001, Math.hypot(fx, fy));
@@ -4717,6 +4734,13 @@ function drawWorldProp(tx,ty,sx,sy){
   ctx.restore();
 }
 function drawWorldNPCFigure(n,sx,sy){
+  ctx.save();
+  let _npcScale=typeof CHAR_OVERLAY_SCALE!=='undefined'?CHAR_OVERLAY_SCALE:1;
+  if(_npcScale!==1){
+    ctx.translate(sx,sy);
+    ctx.scale(_npcScale,_npcScale);
+    ctx.translate(-sx,-sy);
+  }
   // Try to use sprite-based rendering if assets are loaded
   if (USE_PLACEHOLDER_SPRITES && AssetLoader && AssetLoader.isLoaded) {
     const npcRoleMap = {
@@ -4827,7 +4851,8 @@ function drawWorldNPCFigure(n,sx,sy){
       if ((n.shopItems || []).length > 0) {
         drawGlow(sx, sy, 22, 'rgb(215,177,92)', 0.09);
       }
-      
+
+      ctx.restore();
       ctx.restore();
       return;
     }
@@ -4929,6 +4954,7 @@ function drawWorldNPCFigure(n,sx,sy){
   ctx.stroke();
   if((n.shopItems||[]).length>0)drawGlow(sx,sy,22,'rgb(215,177,92)',.09);
   ctx.restore();
+  ctx.restore();
 }
 function playerAtk(){
   let base=P.baseDmg+(P._skaldBuff?.atk||0)+(P.equip.weapon?.dmg||0)+equippedTotal('bonusDmg');
@@ -5014,10 +5040,44 @@ const UNIQUE_WEAPON_RENDER_OVERRIDES={
   weapon_worldbreaker_hammer:{size:30},
   weapon_stormbinder_hammer:{size:30}
 };
+function attackEaseForStyle(p,styleId){
+  if(styleId==='hammer')return p*p;
+  if(styleId==='pike')return p;
+  return 1-Math.pow(1-p,2);
+}
 function getWeaponRenderProfile(assetKey,ws=getWeaponStyle(),classId=P.classId){
   let base=BASE_WEAPON_RENDER_PROFILES[ws.id]||{rest:1.6,swing:-.35,reachIdle:7,reachAtk:16,size:24,gripX:.3,gripY:.68,holdLift:6};
   let family=CLASS_WEAPON_RENDER_PROFILES[ws.id];
   return {...base,...(family?.default||{}),...(family?.[classId]||{}),...(UNIQUE_WEAPON_RENDER_OVERRIDES[assetKey]||{})};
+}
+function getBowPose(classId=P.classId, weaponItem=P.equip.weapon, sx=null, sy=null){
+  let ws = getWeaponStyle(weaponItem);
+  let weaponKey = getHeldWeaponAssetKey(weaponItem, ws);
+  let profile = getWeaponRenderProfile(weaponKey, ws, classId);
+  let fx = P.facing.x || 1;
+  let fy = P.facing.y || 0;
+  let aimAng = Math.atan2(fy, fx);
+  let attackPose = Math.min(1, (P.attackPoseTimer || 0) / 170);
+  let attackEase = 1 - Math.pow(1 - attackPose, 2);
+  let ang = aimAng;
+  let armReach = profile.reachIdle + (profile.reachAtk - profile.reachIdle) * attackEase;
+  let holdLift = profile.holdLift ?? 10;
+  let px = sx ?? (inDungeon ? dPlayer.x : P.x);
+  let py = sy ?? (inDungeon ? dPlayer.y : P.y);
+  let handX = px + Math.cos(ang) * armReach;
+  let handY = py + Math.sin(ang) * armReach - holdLift;
+  let assetRot = (profile.assetRot || 0) * Math.abs(fy);
+  let finalRot = ang + assetRot;
+  let weaponSize = profile.size;
+  let gripX = weaponSize * profile.gripX;
+  let gripY = weaponSize * profile.gripY;
+  let drawShiftX = profile.drawShiftX ?? -0.08;
+  return {
+    ws, weaponKey, profile, attackEase,
+    handX, handY,
+    ang, finalRot,
+    weaponSize, gripX, gripY, drawShiftX
+  };
 }
 function getArmorAssetKey(item=P.equip.armor){
   let name=(item?.name||'').toLowerCase();
@@ -5153,7 +5213,7 @@ function updateDebuffDisplay(){
 }
 
 function takeDamage(amt,ignoreDefense=false,defenseFactor=.4){
-  if(debugGodMode)return;
+  if(debugGodMode){P.blink=180;return;}
   if(P.blink>0)return;
   let armor=Math.max(0,playerDef()*defenseFactor);
   let d=ignoreDefense?Math.max(1,Math.floor(amt)):Math.max(1,Math.floor(amt*(85/(85+armor))));
@@ -5535,6 +5595,19 @@ function applyClass(classId){
   syncSkillbar();
   document.getElementById('lvl').textContent='LV 1';
 }
+function clearTransientPlayerState(){
+  P.blink=0;P.attackTimer=0;P.attackPoseTimer=0;P.atkMode=0;
+  P.rage=false;P.rageTimer=0;P.revived=false;
+  P.sprinting=false;P.staminaRegenTimer=0;
+  P.debuffs={};
+  P._battleTranceTimer=0;P._bulwarkWardTimer=0;P._huntmasterTimer=0;
+  P._omenTimer=0;P._omenCritBonus=0;P._seidrSurgeTimer=0;
+  P._warBannerTimer=0;P._warBannerBonus=0;P._temperBonus=0;
+  P._shrineAtk=0;P._eventWard=0;
+  P._echoBlessing=null;P._echoBlessingUsed=false;
+  P._skaldBuff=null;P._skaldUsed=false;
+  P._warHallUsed=false;
+}
 function saveGame(manual=false){
   try{
     let data={
@@ -5574,6 +5647,7 @@ function loadGame(manual=false){
       helm:data.P.equip?.helm?cloneInvItem(data.P.equip.helm):null,
       rune:data.P.equip?.rune?cloneInvItem(data.P.equip.rune):null
     }};
+    clearTransientPlayerState();
     stash=(data.stash||[]).map(cloneInvItem);
     dungeonFloor=data.dungeonFloor||1;
     activeDungeonRouteId=data.activeDungeonRouteId||'barrow';
@@ -5585,12 +5659,11 @@ function loadGame(manual=false){
     validateSubclassBuildState();
     rebuildClassDerivedStats();
     refundInaccessiblePerks();
-    inDungeon=false;dead=false;paused=false;panel=null;bossRef=null;bossActive=false;bossReady=false;bossSpawned=false;bossDefeated=false;bossSealPending=false;pendingBossChoice=false;
+    inDungeon=false;dead=false;paused=false;panel=null;bossRef=null;bossPhase='idle';bossSealPending=false;pendingBossChoice=false;
     worldEntryPromptCooldown=1200;
     enemies=[];projectiles=[];loot=[];particles=[];floaters=[];
     document.getElementById('death-screen').style.display='none';
     document.getElementById('dungeon-hud').style.display='none';
-    document.getElementById('wave-hud').style.display='none';
     clearBossUI();
     document.getElementById('lvl').textContent='LV '+P.level;
     syncSkillbar();
@@ -6395,7 +6468,11 @@ function buildUpgradeUI(){
   });
   openPanel('upgrade');
 }
-function getNearbyWorldLandmark(range=70){
+function nearbyRangeForSites(){
+  let s=typeof CHAR_OVERLAY_SCALE!=='undefined'?CHAR_OVERLAY_SCALE:1;
+  return 70*s;
+}
+function getNearbyWorldLandmark(range=nearbyRangeForSites()){
   let best=null,bd=range;
   worldLandmarks.forEach(site=>{
     if(site.kind==='village'||(site.used&&!isReusableLandmarkKind(site.kind)))return;
@@ -6418,9 +6495,16 @@ function rewardLandmark(site,rewards={},headline=''){
   spawnParticle(lx,ly,site.kind==='grave'?'#9f8cff':'#d7b15c',18,true);
   if(headline)msg(headline,2800);
 }
+const SITE_KIND_SCALES={dungeon:1.80,portal:1.55,hall:1.35,meadhall:1.35,council:1.30,sanctum:1.25,village:1.25,tower:1.20,memorial:1.15};
 function drawWorldSiteSprite(site,sx,sy){
   ctx.save();
   ctx.textAlign='center';
+  let _siteScale=(typeof CHAR_OVERLAY_SCALE!=='undefined'?CHAR_OVERLAY_SCALE:1)*(SITE_KIND_SCALES[site.kind]||1.0);
+  if(_siteScale!==1){
+    ctx.translate(sx,sy);
+    ctx.scale(_siteScale,_siteScale);
+    ctx.translate(-sx,-sy);
+  }
   if(site.kind==='village'){
     let hearth=pulse(180,site.x+site.y,.76,1),smokeDrift=Math.sin(Date.now()/1500+site.x)*3;
     drawShadow(sx,sy+31,78,17,.24);
@@ -6490,6 +6574,12 @@ function drawWorldSiteSprite(site,sx,sy){
   }else if(site.kind==='dungeon'){
     let gatePulse=pulse(220,site.x+site.y,.78,1);
     drawShadow(sx,sy+20,34,9,.22);
+    ctx.fillStyle='rgba(20,16,28,.55)';
+    ctx.fillRect(sx-34,sy+18,68,8);
+    ctx.fillStyle='rgba(185,164,255,.10)';
+    ctx.fillRect(sx-30,sy+20,60,2);
+    drawGlow(sx-22,sy+6,14,'rgb(216,108,47)',.08);
+    drawGlow(sx+22,sy+6,14,'rgb(216,108,47)',.08);
     ctx.fillStyle='#40384e';
     ctx.fillRect(sx-25,sy-8,16,31);
     ctx.fillRect(sx+9,sy-8,16,31);
@@ -6884,9 +6974,8 @@ function leaveDungeonToHub(text='Returned to Midgard. Rest, trade, and prepare f
   P._omenTimer=0;
   P._omenCritBonus=0;
   doTransition(()=>{
-    inDungeon=false;bossActive=false;bossRef=null;bossReady=false;bossSpawned=false;bossDefeated=false;bossSealPending=false;pendingBossChoice=false;
+    inDungeon=false;bossRef=null;bossPhase='idle';bossSealPending=false;pendingBossChoice=false;
     document.getElementById('dungeon-hud').style.display='none';
-    document.getElementById('wave-hud').style.display='none';
     clearBossUI();
     enemies=[];projectiles=[];loot=[];
     if(lastDungeonEntrance){P.x=lastDungeonEntrance.wx;P.y=lastDungeonEntrance.wy+T*1.2;}
@@ -6945,7 +7034,6 @@ function enterDungeon(){
     P._warHallUsed=false;
     grantMidgardProvisions();
     document.getElementById('dungeon-hud').style.display='flex';
-    document.getElementById('wave-hud').style.display='none';
     generateDungeon(dungeonFloor);
     spawnDungeonContents();
     revealAround(Math.floor(dPlayer.x/DTILE),Math.floor(dPlayer.y/DTILE),5);
@@ -6958,7 +7046,7 @@ function enterDungeon(){
 function spawnDungeonContents(){
   let r0=drooms[0];let sp=safeFloorPos(r0,[]);
   dPlayer.x=sp.x*DTILE+DTILE/2;dPlayer.y=sp.y*DTILE+DTILE/2;
-  currentRoomIdx=0;enemies=[];projectiles=[];loot=[];lootPickupCooldown=0;bossReady=false;bossRoomAnnounced=false;bossRef=null;bossActive=false;bossSpawned=false;bossDefeated=false;bossSealPending=false;pendingBossChoice=false;dungeonStartRoomId=r0.id;dungeonStartSafeTimer=4000;
+  currentRoomIdx=0;enemies=[];projectiles=[];loot=[];lootPickupCooldown=0;bossPhase='idle';bossRoomAnnounced=false;bossRef=null;bossSealPending=false;pendingBossChoice=false;dungeonStartRoomId=r0.id;dungeonStartSafeTimer=4000;
   clearBossUI();
   // Spawn enemies
   drooms.forEach((r,i)=>{
@@ -7009,7 +7097,7 @@ function spawnDungeonContents(){
 }
 
 function spawnDungeonBoss(){
-  if(bossActive||bossRef||bossSpawned||!dbossRoom)return;
+  if(bossPhase==='active'||bossPhase==='defeated'||bossRef||!dbossRoom)return;
   let bdef=currentDungeonBossDef();
   let sf=scaleFactor(dungeonFloor,P.level)*(1+.12*Math.max(0,dungeonFloor-1))*bossDepthMod();
   let boss=dbossRoom;
@@ -7030,7 +7118,7 @@ function spawnDungeonBoss(){
     bossRef.affixRateMult*=aff.timeRate?1/aff.timeRate:1;
     bossRef.affixTimeRate*=aff.timeRate||1;
   });
-  enemies.push(bossRef);bossActive=true;bossSpawned=true;playSfx('bossSpawn',1.15);
+  enemies.push(bossRef);bossPhase='active';playSfx('bossSpawn',1.15);
   let escortBase=bossEscortBase(bdef);
   spawnBossEscort(bossRef,escortBase,2,bdef.family==='grave'?1.12:bdef.family==='ember'?1.08:1.1,bdef.family==='seer'||bdef.family==='shadow'?1.06:1.03);
   if(dungeonFloor>=20)spawnBossEscort(bossRef,escortBase,2,1.18,1.08);
@@ -7061,9 +7149,9 @@ function updateDungeonHUD(){
   let bossName=currentDungeonBossDef().name;
   let milestone=floorMilestoneData();
   let objective=isBossFloor()
-    ? (bossDefeated?'Choose whether to descend or return to Midgard':
-      bossActive?'Survive and slay '+bossName:
-      bossReady?'Enter '+bossName+'\'s lair':
+    ? (bossPhase==='defeated'?'Choose whether to descend or return to Midgard':
+      bossPhase==='active'?'Survive and slay '+bossName:
+      bossPhase==='ready'?'Enter '+bossName+'\'s lair':
       remaining>0?'Hunt '+remaining+' minion'+(remaining===1?'':'s')+' to reveal '+bossName:
       'The sanctum stirs...')
     : (remaining>0?'Clear '+remaining+' remaining foe'+(remaining===1?'':'s')+' to reveal the descent':
@@ -7073,7 +7161,7 @@ function updateDungeonHUD(){
   document.getElementById('room-tot').textContent=drooms.length;
   document.getElementById('floor-enemies').textContent=remaining;
   document.getElementById('floor-enemies-note').textContent=isBossFloor()
-    ? (bossDefeated?'Boss Defeated':remaining>0?`Clear ${remaining} To Open Lair`:bossReady?'Lair Open':'Lair Sealed')
+    ? (bossPhase==='defeated'?'Boss Defeated':remaining>0?`Clear ${remaining} To Open Lair`:bossPhase==='ready'?'Lair Open':'Lair Sealed')
     : (remaining>0?`Clear ${remaining} To Reveal Stairs`:'Stairs Revealed');
   document.getElementById('floor-objective').textContent=milestone?`${milestone.title}: ${objective}`:objective;
   if(bossRef&&bossRef.hp>0)document.getElementById('bossf').style.width=(bossRef.hp/bossRef.maxHp*100)+'%';
@@ -7081,23 +7169,23 @@ function updateDungeonHUD(){
 function remainingDungeonMinions(){return enemies.filter(e=>e.hp>0&&e.isDungeon===true&&!e.isBoss).length;}
 function openBossLairIfReady(){
   if(!isBossFloor())return;
-  if(!dbossRoom||bossReady||bossActive||bossRef||bossSpawned||bossDefeated)return;
+  if(!dbossRoom||bossPhase!=='idle'||bossRef)return;
   let remaining=remainingDungeonMinions();
   if(remaining!==0)return;
   let milestoneReward=grantFloorMilestoneReward(dungeonFloor);
   if(milestoneReward)msg(`${floorMilestoneData(dungeonFloor)?.title} | ${milestoneReward.text}`,3000);
-  bossReady=true;
+  bossPhase='ready';
   if(dbossRoom.doorX!=null&&dbossRoom.doorY!=null&&dmap[dbossRoom.doorY]?.[dbossRoom.doorX]===DT.DOOR)dmap[dbossRoom.doorY][dbossRoom.doorX]=DT.FLOOR;
   let ri=getCurrentRoom();
   if(ri>=0&&drooms[ri]?.isBossRoom){
-    spawnDungeonBoss();bossReady=false;bossSealPending=true;
+    spawnDungeonBoss();bossSealPending=true;
     msg(`${currentDungeonBossDef().name} answers the slaughter!`,2400);
   }else{
     msg(`${currentDungeonBossDef().name} stirs in the arena ahead!`,2400);
   }
 }
 function openStairsIfReady(){
-  if(isBossFloor()||!dstairsPos||bossDefeated)return;
+  if(isBossFloor()||!dstairsPos||bossPhase==='defeated')return;
   if(remainingDungeonMinions()!==0)return;
   let milestoneReward=grantFloorMilestoneReward(dungeonFloor);
   if(milestoneReward)msg(`${floorMilestoneData(dungeonFloor)?.title} | ${milestoneReward.text}`,3000);
@@ -7151,19 +7239,9 @@ function checkRoomCleared(ri){
     msg('Door unlocked.',2400);
   }
 }
-function spawnEnemy(nearPlayer){
-  let def=EDEFS[Math.floor(Math.random()*5)];
-  let sf=scaleFactor(1,P.level)*(1+wave*.08);
-  let e={...def,maxHp:Math.floor(def.hp*sf),hp:Math.floor(def.hp*sf),dmg:Math.floor(def.dmg*sf),xp:Math.floor(def.xp*sf),gold:Math.floor(def.gold*sf),shotTimer:0,froze:0,slow:0,id:Math.random(),x:0,y:0};
-  let tries=0;
-  do{e.x=nearPlayer?P.x+(Math.random()-.5)*500:Math.random()*WS*T;e.y=nearPlayer?P.y+(Math.random()-.5)*500:Math.random()*WS*T;tries++;}
-  while((isBlockedWorld(e.x,e.y)||Math.hypot(e.x-P.x,e.y-P.y)<160)&&tries<30);
-  enemies.push(e);
-}
-function spawnEnemiesWorld(n,near){for(let i=0;i<n;i++)spawnEnemy(near);}
 function spawnWorldBoss(){
   if(inDungeon)return;
-  bossActive=true;
+  bossPhase='active';
   let def=WORLD_BOSSES[worldBossIndex%WORLD_BOSSES.length];worldBossIndex++;
   let sf=scaleFactor(1,P.level);
   bossRef={...def,hp:Math.floor(def.maxHp*sf),maxHp:Math.floor(def.maxHp*sf),dmg:Math.floor(def.dmg*sf),phase2hp:Math.floor(def.phase2hp*sf),phase:1,shotTimer:0,froze:0,slow:0,id:Math.random(),x:P.x+350,y:P.y+100,isBoss:true,isDungeon:false};
@@ -7561,8 +7639,8 @@ let frozenMult=dungeonHasMod('Frozen')?0.8:1;
   dCam.x+=screenShake.x;dCam.y+=screenShake.y;
   let ptx=Math.floor(dPlayer.x/DTILE),pty=Math.floor(dPlayer.y/DTILE);
   revealAround(ptx,pty,5);
-  let ri=getCurrentRoom();if(ri>=0&&ri!==currentRoomIdx){currentRoomIdx=ri;if(drooms[ri]?.id!==dungeonStartRoomId)dungeonStartSafeTimer=0;if(bossReady&&drooms[ri]?.isBossRoom&&!bossActive&&!bossRef&&!bossDefeated){spawnDungeonBoss();bossReady=false;bossSealPending=true;if(!bossRoomAnnounced){bossRoomAnnounced=true;msg('âš ï¸ The sanctum seals behind you. Survive the lair.',2400);}}let room=drooms[ri];if(room&&!room._announced&&['treasury','barracks','arena','champion'].includes(room.type)){room._announced=true;msg(room.type==='treasury'?'ðŸ’° <b>Treasury</b><br><small>Richer chests and greedier danger fill this chamber.</small>':room.type==='barracks'?'ðŸ›¡ï¸ <b>Barracks</b><br><small>A war room packed with heavier resistance.</small>':room.type==='arena'?'âš”ï¸ <b>Arena</b><br><small>A set-piece combat chamber. Expect an elite champion.</small>':'ðŸ‘‘ <b>Champion Room</b><br><small>A miniboss-tier foe holds this chamber.</small>',2400);}if(room?.deepThreat&&!room._deepAnnounced){room._deepAnnounced=true;msg(room.deepThreat==='abyssal'?'ðŸœ‚ <b>Abyss Breach</b><br><small>The deep has claimed this chamber. Expect a champion and escorts.</small>':'â˜ ï¸ <b>Deep Hunt</b><br><small>A hardened champion stalks this room.</small>',2500);}let roomEvent=dFloorEvents.find(ev=>ev.roomId===drooms[ri]?.id&&!ev.used&&!ev.noticed);if(roomEvent){roomEvent.noticed=true;msg(`${roomEvent.icon} <b>${roomEvent.name}</b><br><small>${roomEvent.roomText||roomEvent.desc}<br>${roomEvent.rewardText||''}</small>`,2600);}updateDungeonHUD();}
-  if(bossSealPending&&bossActive&&dbossRoom?.doorX!=null&&dbossRoom?.doorY!=null){
+  let ri=getCurrentRoom();if(ri>=0&&ri!==currentRoomIdx){currentRoomIdx=ri;if(drooms[ri]?.id!==dungeonStartRoomId)dungeonStartSafeTimer=0;if(bossPhase==='ready'&&drooms[ri]?.isBossRoom&&!bossRef){spawnDungeonBoss();bossSealPending=true;if(!bossRoomAnnounced){bossRoomAnnounced=true;msg('âš ï¸ The sanctum seals behind you. Survive the lair.',2400);}}let room=drooms[ri];if(room&&!room._announced&&['treasury','barracks','arena','champion'].includes(room.type)){room._announced=true;msg(room.type==='treasury'?'ðŸ’° <b>Treasury</b><br><small>Richer chests and greedier danger fill this chamber.</small>':room.type==='barracks'?'ðŸ›¡ï¸ <b>Barracks</b><br><small>A war room packed with heavier resistance.</small>':room.type==='arena'?'âš”ï¸ <b>Arena</b><br><small>A set-piece combat chamber. Expect an elite champion.</small>':'ðŸ‘‘ <b>Champion Room</b><br><small>A miniboss-tier foe holds this chamber.</small>',2400);}if(room?.deepThreat&&!room._deepAnnounced){room._deepAnnounced=true;msg(room.deepThreat==='abyssal'?'ðŸœ‚ <b>Abyss Breach</b><br><small>The deep has claimed this chamber. Expect a champion and escorts.</small>':'â˜ ï¸ <b>Deep Hunt</b><br><small>A hardened champion stalks this room.</small>',2500);}let roomEvent=dFloorEvents.find(ev=>ev.roomId===drooms[ri]?.id&&!ev.used&&!ev.noticed);if(roomEvent){roomEvent.noticed=true;msg(`${roomEvent.icon} <b>${roomEvent.name}</b><br><small>${roomEvent.roomText||roomEvent.desc}<br>${roomEvent.rewardText||''}</small>`,2600);}updateDungeonHUD();}
+  if(bossSealPending&&bossPhase==='active'&&dbossRoom?.doorX!=null&&dbossRoom?.doorY!=null){
     let doorCx=dbossRoom.doorX*DTILE+DTILE/2,doorCy=dbossRoom.doorY*DTILE+DTILE/2;
     if(Math.hypot(dPlayer.x-doorCx,dPlayer.y-doorCy)>DTILE*1.15){
       dmap[dbossRoom.doorY][dbossRoom.doorX]=DT.BOSS_DOOR;
@@ -7659,7 +7737,7 @@ function updateEnemies(dt){
   for(let i=enemies.length-1;i>=0;i--){
     let e=enemies[i];
     if(!isEnemyInActiveMode(e)){
-      if(e===bossRef){bossRef=null;bossActive=false;clearBossUI();}
+      if(e===bossRef){bossRef=null;bossPhase='idle';clearBossUI();}
       enemies.splice(i,1);continue;
     }
     if(e.hp<=0){
@@ -7690,7 +7768,7 @@ function updateEnemies(dt){
         let hist=ensureRunHistory();
         hist.bossesSlain++;
         hist.deepestFloor=Math.max(hist.deepestFloor,dungeonFloor);
-        bossActive=false;bossDefeated=true;bossRef=null;document.getElementById('bossbar').style.display='none';
+        bossPhase='defeated';bossRef=null;document.getElementById('bossbar').style.display='none';
         if(inDungeon){
           dbossRoom.cleared=true;bossSealPending=false;
           if(dbossRoom?.doorY!=null&&dbossRoom?.doorX!=null)dmap[dbossRoom.doorY][dbossRoom.doorX]=DT.FLOOR;playSfx('bossDeath',1.2);
@@ -7702,7 +7780,6 @@ function updateEnemies(dt){
       }
       enemies.splice(i,1);continue;
     }
-    if(e.froze>0){e.froze-=dt;if(dungeonHasMod('Cursed'))e.hp=Math.min(e.maxHp,e.hp+.5);continue;}
     if(e.hitFlash>0)e.hitFlash=Math.max(0,e.hitFlash-dt);
     if(e.hitKickX||e.hitKickY){
       e.hitKickX=(e.hitKickX||0)*0.78;
@@ -7710,6 +7787,7 @@ function updateEnemies(dt){
       if(Math.abs(e.hitKickX)<0.1)e.hitKickX=0;
       if(Math.abs(e.hitKickY)<0.1)e.hitKickY=0;
     }
+    if(e.froze>0){e.froze-=dt;if(dungeonHasMod('Cursed'))e.hp=Math.min(e.maxHp,e.hp+.5);continue;}
     if(inDungeon&&!e.isBoss&&dungeonStartSafeTimer>0)continue;
     let slow=e.slow>0?(e.slow-=dt/1000,.5):1;
     let dist=Math.hypot(e.x-px,e.y-py);
@@ -7819,10 +7897,6 @@ function updateParticles(dt){
   floaters=floaters.filter(f=>{f.y+=f.vy*(dt/16);f.life-=dt/1600;return f.life>0;});
 }
 
-function updateWaves(dt){
-  document.getElementById('wave-hud').style.display='none';
-}
-
 function handleDeath(){
   if(!dead){
     if(!P.revived&&P.perks.some(p=>p.name==='Valhalla Chosen')){P.revived=true;P.hp=Math.floor(P.maxHp*.3);msg('VALHALLA CHOSEN - REVIVED FROM DEATH!',3500);return;}
@@ -7840,6 +7914,24 @@ function handleDeath(){
 function restartGame(){
   keys={};
   location.reload();
+}
+
+const _tileGradientCache=new Map();
+function getTileGradientBitmap(topCol,botCol,w,h){
+  let key=topCol+'|'+botCol+'|'+w+'|'+h;
+  let cv=_tileGradientCache.get(key);
+  if(!cv){
+    cv=document.createElement('canvas');
+    cv.width=w;cv.height=h;
+    let cx=cv.getContext('2d');
+    let g=cx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,topCol);
+    g.addColorStop(1,botCol);
+    cx.fillStyle=g;
+    cx.fillRect(0,0,w,h);
+    _tileGradientCache.set(key,cv);
+  }
+  return cv;
 }
 
 function drawTile(tx,ty,sx,sy){
@@ -7869,9 +7961,7 @@ function drawTile(tx,ty,sx,sy){
     case TILE.GRASS:{
       let grassTop=site?.kind==='village'&&dist<8?'#61724a':site?.kind==='grove'&&dist<7?'#41733a':macro>.55?'#417a28':'#3d7424';
       let grassBot=site?.kind==='grove'&&dist<8?'#1d4620':site?.kind==='grave'&&dist<7?'#2f3c29':broad>.58?'#315925':'#294f1f';
-      let gg=ctx.createLinearGradient(sx,sy,sx,sy+T);
-      gg.addColorStop(0,grassTop);gg.addColorStop(1,grassBot);
-      ctx.fillStyle=gg;ctx.fillRect(sx,sy,T,T);
+      ctx.drawImage(getTileGradientBitmap(grassTop,grassBot,T,T),sx,sy);
       if(macro>.42){
         ctx.fillStyle='rgba(255,255,255,.03)';
         ctx.fillRect(sx+2,sy+2,T-4,1.2);
@@ -7911,10 +8001,7 @@ function drawTile(tx,ty,sx,sy){
       if(site?.kind==='watcher'&&dist<7&&n>.62){ctx.fillStyle='rgba(12,14,18,.18)';ctx.fillRect(sx+10,sy+10,4,10);}
       break;}
     case TILE.SNOW:{
-      let snow=ctx.createLinearGradient(sx,sy,sx,sy+T);
-      snow.addColorStop(0,'#e2edf5');
-      snow.addColorStop(1,'#b8cad8');
-      ctx.fillStyle=snow;ctx.fillRect(sx,sy,T,T);
+      ctx.drawImage(getTileGradientBitmap('#e2edf5','#b8cad8',T,T),sx,sy);
       ctx.fillStyle='rgba(255,255,255,.28)';
       ctx.fillRect(sx+2,sy+2,T-4,2);
       ctx.fillStyle='rgba(130,150,170,.12)';
@@ -7935,9 +8022,7 @@ function drawTile(tx,ty,sx,sy){
       let blRound=(south||west)?0:(sw?2:pathInset+2);
       let bgTop=site?.kind==='village'&&dist<8?'#556842':macro>.55?'#427928':'#3a6e22';
       let bgBot=site?.kind==='village'&&dist<8?'#334a28':broad>.58?'#315925':'#294f1f';
-      let under=ctx.createLinearGradient(sx,sy,sx,sy+T);
-      under.addColorStop(0,bgTop);under.addColorStop(1,bgBot);
-      ctx.fillStyle=under;ctx.fillRect(sx,sy,T,T);
+      ctx.drawImage(getTileGradientBitmap(bgTop,bgBot,T,T),sx,sy);
       let sg=ctx.createLinearGradient(sx,sy,sx,sy+T);
       sg.addColorStop(0,villagePlaza?'#8a7a66':villageRoad?'#847661':site?.kind==='village'?'#82725f':macro>.52?'#6d6f80':'#666878');
       sg.addColorStop(1,villagePlaza?'#706250':villageRoad?'#675b4e':site?.kind==='bridge'?'#5d4d3d':broad>.56?'#54586a':'#4a4f60');
@@ -8006,10 +8091,9 @@ function drawTile(tx,ty,sx,sy){
       let trRound=(north===TILE.WATER||east===TILE.WATER)?0:(ne===TILE.WATER?2:bank+2);
       let brRound=(south===TILE.WATER||east===TILE.WATER)?0:(se===TILE.WATER?2:bank+2);
       let blRound=(south===TILE.WATER||west===TILE.WATER)?0:(sw===TILE.WATER?2:bank+2);
-      let shore=ctx.createLinearGradient(sx,sy,sx,sy+T);
-      shore.addColorStop(0,site?.kind==='village'&&dist<8?'#566842':'#3f7128');
-      shore.addColorStop(1,site?.kind==='village'&&dist<8?'#334b27':'#294f1f');
-      ctx.fillStyle=shore;ctx.fillRect(sx,sy,T,T);
+      let shoreTop=site?.kind==='village'&&dist<8?'#566842':'#3f7128';
+      let shoreBot=site?.kind==='village'&&dist<8?'#334b27':'#294f1f';
+      ctx.drawImage(getTileGradientBitmap(shoreTop,shoreBot,T,T),sx,sy);
       let wv=Date.now()/2200+tx*.5+ty*.3;
       let water=ctx.createLinearGradient(sx,sy,sx,sy+T);
       water.addColorStop(0,'#346993');
@@ -8123,10 +8207,7 @@ function drawDungeonTile(t,tx,ty,sx,sy){
       let southWall=dmap[ty+1]?.[tx]===DT.WALL||dmap[ty+1]?.[tx]===DT.SECRET_WALL;
       let westWall=dmap[ty]?.[tx-1]===DT.WALL||dmap[ty]?.[tx-1]===DT.SECRET_WALL;
       let eastWall=dmap[ty]?.[tx+1]===DT.WALL||dmap[ty]?.[tx+1]===DT.SECRET_WALL;
-      let floorGrad=ctx.createLinearGradient(sx,sy,sx,sy+DTILE);
-      floorGrad.addColorStop(0,floorCol);
-      floorGrad.addColorStop(1,'rgba(255,255,255,.035)');
-      ctx.fillStyle=floorGrad;ctx.fillRect(sx,sy,DTILE,DTILE);
+      ctx.drawImage(getTileGradientBitmap(floorCol,'rgba(255,255,255,.035)',DTILE,DTILE),sx,sy);
       ctx.fillStyle='rgba(255,255,255,.055)';
       ctx.fillRect(sx+2,sy+2,DTILE-4,DTILE-4);
       if(northWall){ctx.fillStyle='rgba(255,255,255,.14)';ctx.fillRect(sx,sy,DTILE,2);}
@@ -8467,7 +8548,7 @@ function drawDungeonTile(t,tx,ty,sx,sy){
       if(Math.hypot(dPlayer.x-(tx*DTILE+DTILE/2),dPlayer.y-(ty*DTILE+DTILE/2))<DTILE*1.8){
         let bossName=currentDungeonBossDef().name;
         ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(sx-22,sy-18,DTILE+44,16);
-        ctx.fillStyle='#ff8a8a';ctx.font='9px monospace';ctx.textAlign='center';ctx.fillText(bossReady?'[ENTER] '+bossName:bossName+' SEALED',sx+DTILE/2,sy-6);
+        ctx.fillStyle='#ff8a8a';ctx.font='9px monospace';ctx.textAlign='center';ctx.fillText(bossPhase==='ready'?'[ENTER] '+bossName:bossName+' SEALED',sx+DTILE/2,sy-6);
       }
       ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('X',sx+DTILE/2,sy+DTILE/2+5);ctx.textAlign='left';break;}
     case DT.CHEST:{
@@ -8663,10 +8744,17 @@ function drawDungeon(){
     ctx.fill();
   }
   ctx.restore();
+  const DUNGEON_ZOOM=0.80;
+  ctx.save();
+  ctx.translate(W/2,H/2);
+  ctx.scale(DUNGEON_ZOOM,DUNGEON_ZOOM);
+  ctx.translate(-W/2,-H/2);
   let ox=-dCam.x,oy=-dCam.y;
-  for(let ty=0;ty<DH;ty++)for(let tx=0;tx<DW;tx++){
+  let viewHalfW=W/(2*DUNGEON_ZOOM),viewHalfH=H/(2*DUNGEON_ZOOM);
+  let tx0=Math.max(0,Math.floor((dCam.x+W/2-viewHalfW)/DTILE)),ty0=Math.max(0,Math.floor((dCam.y+H/2-viewHalfH)/DTILE));
+  let tx1=Math.min(DW,Math.ceil((dCam.x+W/2+viewHalfW)/DTILE)+1),ty1=Math.min(DH,Math.ceil((dCam.y+H/2+viewHalfH)/DTILE)+1);
+  for(let ty=ty0;ty<ty1;ty++)for(let tx=tx0;tx<tx1;tx++){
     let sx=tx*DTILE+ox,sy=ty*DTILE+oy;
-    if(sx<-DTILE||sx>W+DTILE||sy<-DTILE||sy>H+DTILE)continue;
     if(!dungeonRevealed[ty][tx]){ctx.fillStyle='rgba(10,10,16,0.92)';ctx.fillRect(sx,sy,DTILE,DTILE);continue;}
     drawDungeonTile(dmap[ty][tx],tx,ty,sx,sy);
   }
@@ -8679,6 +8767,7 @@ function drawDungeon(){
     grad.addColorStop(0,'rgba(255,190,110,0.26)');grad.addColorStop(.45,'rgba(255,150,78,0.12)');grad.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle=grad;ctx.fillRect(sx-DTILE*3,sy-DTILE*3,DTILE*6,DTILE*6);
   });
+  ctx.restore();
   if(routeFx.id==='seer'){
     ctx.save();
     ctx.globalAlpha=.18;
@@ -8714,6 +8803,10 @@ function drawDungeon(){
     }
     ctx.restore();
   }
+  ctx.save();
+  ctx.translate(W/2,H/2);
+  ctx.scale(DUNGEON_ZOOM,DUNGEON_ZOOM);
+  ctx.translate(-W/2,-H/2);
   // Fog of war edge
   for(let ty=0;ty<DH;ty++)for(let tx=0;tx<DW;tx++){
     if(dungeonRevealed[ty][tx])continue;
@@ -8724,28 +8817,33 @@ function drawDungeon(){
   loot.filter(l=>l.isDungeon).forEach(l=>{
     drawLootSprite(l,l.x-dCam.x,l.y-dCam.y);
   });
-  // Enemies
+  // Y-sorted entities (enemies + player)
+  let dDrawables=[];
   enemies.filter(e=>e.isDungeon).forEach(e=>{
     if(e.hp<=0)return;
     let etx=Math.floor(e.x/DTILE),ety=Math.floor(e.y/DTILE);
     if(!dungeonRevealed[ety]?.[etx])return;
-    drawEnemySprite(e,e.x-dCam.x,e.y-dCam.y);
+    let esx=e.x-dCam.x,esy=e.y-dCam.y;
+    dDrawables.push({y:e.y,fn:()=>drawEnemySprite(e,esx,esy)});
   });
+  let psx=dPlayer.x-dCam.x,psy=dPlayer.y-dCam.y;
+  if(!(P.blink>0&&Math.floor(Date.now()/90)%2===0)){
+    dDrawables.push({y:dPlayer.y,fn:()=>drawPlayerSprite(psx,psy)});
+  }
+  dDrawables.sort((a,b)=>a.y-b.y);
+  for(let i=0;i<dDrawables.length;i++)dDrawables[i].fn();
   // Projectiles - Dungeon
   projectiles.filter(p=>p.isDungeon).forEach(p=>{
     let sx=p.x-dCam.x,sy=p.y-dCam.y;
     drawProjectileSprite(p, sx, sy);
   });
-  // Player
-  let psx=dPlayer.x-dCam.x,psy=dPlayer.y-dCam.y;
-  if(!(P.blink>0&&Math.floor(Date.now()/90)%2===0)){
-    drawPlayerSprite(psx,psy);
-  }
   // Player torch glow
   let grad2=ctx.createRadialGradient(psx,psy,0,psx,psy,DTILE*4);
   grad2.addColorStop(0,'rgba(255,225,148,0.24)');grad2.addColorStop(.55,'rgba(255,170,80,0.1)');grad2.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=grad2;ctx.fillRect(psx-DTILE*5,psy-DTILE*5,DTILE*10,DTILE*10);
-  drawParticles();drawFloaters();drawDungeonMinimap();
+  drawParticles();drawFloaters();
+  ctx.restore();
+  drawDungeonMinimap();
   let vg=ctx.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,H*.75);
   vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,8,.38)');
   ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
@@ -8762,12 +8860,12 @@ function drawDungeonMinimap(){
   }
   if(dbossRoom){
     let cx=Math.floor((dbossRoom.x+dbossRoom.w/2)*sc),cy=Math.floor((dbossRoom.y+dbossRoom.h/2)*sc);
-    let revealed=bossReady||bossActive||bossDefeated||dungeonRevealed[dbossRoom.doorY]?.[dbossRoom.doorX];
+    let revealed=bossPhase!=='idle'||dungeonRevealed[dbossRoom.doorY]?.[dbossRoom.doorX];
     if(revealed){
-      mctx.strokeStyle=bossDefeated?'#00ddff':bossActive?'#ff4444':bossReady?'#ffb347':'#773333';
+      mctx.strokeStyle=bossPhase==='defeated'?'#00ddff':bossPhase==='active'?'#ff4444':bossPhase==='ready'?'#ffb347':'#773333';
       mctx.lineWidth=2;
       mctx.strokeRect(dbossRoom.x*sc,dbossRoom.y*sc,Math.max(2,dbossRoom.w*sc),Math.max(2,dbossRoom.h*sc));
-      mctx.fillStyle=bossDefeated?'#00ddff':bossActive?'#ff4444':'#ffb347';
+      mctx.fillStyle=bossPhase==='defeated'?'#00ddff':bossPhase==='active'?'#ff4444':'#ffb347';
       mctx.fillRect(cx-1,cy-1,3,3);
     }
   }
@@ -8863,18 +8961,21 @@ function drawWorldEntities(){
       let label=(ent.name||'Dungeon')+' - walk in';
       let sub=ent.routeLootHint||'';
       let w=Math.max(140,Math.max(label.length*6.4,sub.length*6.2));
+      let dungeonScale=(typeof CHAR_OVERLAY_SCALE!=='undefined'?CHAR_OVERLAY_SCALE:1)*(SITE_KIND_SCALES?.dungeon||1);
+      let labelLift=Math.round(28*dungeonScale);
+      let boxTop=sy-44-labelLift;
       ctx.fillStyle='rgba(8,6,18,.88)';
-      ctx.fillRect(sx-w/2,sy-44,w,28);
+      ctx.fillRect(sx-w/2,boxTop,w,28);
       ctx.strokeStyle='rgba(176,158,255,.75)';
       ctx.lineWidth=1;
-      ctx.strokeRect(sx-w/2,sy-44,w,28);
+      ctx.strokeRect(sx-w/2,boxTop,w,28);
       ctx.fillStyle='#efe7ff';
       ctx.font='12px monospace';
       ctx.textAlign='center';
-      ctx.fillText(label,sx,sy-31);
+      ctx.fillText(label,sx,boxTop+13);
       ctx.fillStyle='#bdaedb';
       ctx.font='10px monospace';
-      ctx.fillText(sub,sx,sy-18);
+      ctx.fillText(sub,sx,boxTop+26);
       ctx.textAlign='left';
       ctx.restore();
     }
@@ -8884,41 +8985,50 @@ function drawWorldEntities(){
     if(sx<-120||sx>W+120||sy<-120||sy>H+120)return;
     if(['village','tower','dungeon','grave','ruin','hall','council','sanctum','meadhall','memorial','watcher','portal'].includes(site.kind))drawWorldSiteSprite(site,sx,sy);
   });
-  npcList.forEach(n=>{
-    let sx=n.wx-cam.x,sy=n.wy-cam.y;if(sx<-60||sx>W+60||sy<-60||sy>H+60)return;
-    let isMerchant=(n.shopItems||[]).length>0;
-    ctx.save();
-    drawWorldNPCFigure(n,sx,sy);
-    if(Math.hypot(n.wx-P.x,n.wy-P.y)<100){
-      let boxW=Math.max(92,n.name.length*6.2+18);
-      let boxY=sy-46;
-      ctx.fillStyle='rgba(0,0,0,.68)';
-      ctx.fillRect(sx-boxW/2,boxY,boxW,24);
-      ctx.textAlign='center';
-      ctx.fillStyle='#ffd700';
-      ctx.font='10px monospace';
-      ctx.fillText(n.name,sx,boxY+11);
-      ctx.fillStyle=isMerchant?'#f8da82':'#aaa';
-      ctx.font='9px monospace';
-      ctx.fillText(isMerchant?'[F] Trade':'[F] Talk',sx,boxY+21);
-    }
-    ctx.textAlign='left';ctx.restore();
-  });
   loot.filter(l=>!l.isDungeon).forEach(l=>{
     drawLootSprite(l,l.x-cam.x,l.y-cam.y);
   });
-  enemies.filter(e=>!e.isDungeon).forEach(e=>{
-    if(e.hp<=0)return;let sx=e.x-cam.x,sy=e.y-cam.y;if(sx<-80||sx>W+80||sy<-80||sy>H+80)return;
-    drawEnemySprite(e,sx,sy);
+  let drawables=[];
+  npcList.forEach(n=>{
+    let sx=n.wx-cam.x,sy=n.wy-cam.y;
+    if(sx<-60||sx>W+60||sy<-60||sy>H+60)return;
+    drawables.push({y:n.wy,fn:()=>{
+      let isMerchant=(n.shopItems||[]).length>0;
+      ctx.save();
+      drawWorldNPCFigure(n,sx,sy);
+      if(Math.hypot(n.wx-P.x,n.wy-P.y)<100){
+        let boxW=Math.max(92,n.name.length*6.2+18);
+        let nameplateScale=typeof CHAR_OVERLAY_SCALE!=='undefined'?CHAR_OVERLAY_SCALE:1;
+        let boxY=Math.round(sy-46*nameplateScale);
+        ctx.fillStyle='rgba(0,0,0,.68)';
+        ctx.fillRect(sx-boxW/2,boxY,boxW,24);
+        ctx.textAlign='center';
+        ctx.fillStyle='#ffd700';
+        ctx.font='10px monospace';
+        ctx.fillText(n.name,sx,boxY+11);
+        ctx.fillStyle=isMerchant?'#f8da82':'#aaa';
+        ctx.font='9px monospace';
+        ctx.fillText(isMerchant?'[F] Trade':'[F] Talk',sx,boxY+21);
+      }
+      ctx.textAlign='left';ctx.restore();
+    }});
   });
+  enemies.filter(e=>!e.isDungeon).forEach(e=>{
+    if(e.hp<=0)return;
+    let sx=e.x-cam.x,sy=e.y-cam.y;
+    if(sx<-80||sx>W+80||sy<-80||sy>H+80)return;
+    drawables.push({y:e.y,fn:()=>drawEnemySprite(e,sx,sy)});
+  });
+  if(!(P.blink>0&&Math.floor(Date.now()/90)%2===0)){
+    let psx=P.x-cam.x,psy=P.y-cam.y;
+    drawables.push({y:P.y,fn:()=>drawPlayerSprite(psx,psy)});
+  }
+  drawables.sort((a,b)=>a.y-b.y);
+  for(let i=0;i<drawables.length;i++)drawables[i].fn();
   projectiles.filter(p=>!p.isDungeon).forEach(p=>{
     let sx=p.x-cam.x,sy=p.y-cam.y;
     drawProjectileSprite(p, sx, sy);
   });
-  let sx=P.x-cam.x,sy=P.y-cam.y;
-  if(!(P.blink>0&&Math.floor(Date.now()/90)%2===0)){
-    drawPlayerSprite(sx,sy);
-  }
   worldLandmarks.forEach(site=>{
     let sx=site.x*T+T/2-cam.x,sy=site.y*T+T/2-cam.y;
     if(sx<-80||sx>W+80||sy<-80||sy>H+80)return;
@@ -9010,17 +9120,29 @@ function drawPauseOverlay(){
   ctx.fillStyle='#ffd700';ctx.font='bold 36px monospace';ctx.textAlign='center';ctx.fillText('PAUSED',W/2,H/2-10);
   ctx.fillStyle='#aaa';ctx.font='16px monospace';ctx.fillText('Press P to resume',W/2,H/2+28);ctx.textAlign='left';ctx.restore();
 }
+let hudNodes=null;
 function updateHUD(){
-  document.getElementById('hpf').style.width=(P.hp/P.maxHp*100)+'%';
-  document.getElementById('mpf').style.width=(P.mp/P.maxMp*100)+'%';
-  document.getElementById('xpf').style.width=(P.xp/P.xpNext*100)+'%';
-  document.getElementById('stf').style.width=(P.stamina/P.maxStamina*100)+'%';
-  document.getElementById('stf').style.background=P.stamina<20?'linear-gradient(90deg,#550000,#cc2200)':P.sprinting?'linear-gradient(90deg,#007700,#44ff44)':'linear-gradient(90deg,#005500,#22cc44)';
+  if(!hudNodes){
+    hudNodes={
+      hpf:document.getElementById('hpf'),
+      mpf:document.getElementById('mpf'),
+      xpf:document.getElementById('xpf'),
+      stf:document.getElementById('stf'),
+      gold:document.getElementById('gold'),
+      potionCount:document.getElementById('potion-count'),
+      cd:[0,1,2,3].map(i=>document.getElementById('cd'+i))
+    };
+  }
+  hudNodes.hpf.style.width=(P.hp/P.maxHp*100)+'%';
+  hudNodes.mpf.style.width=(P.mp/P.maxMp*100)+'%';
+  hudNodes.xpf.style.width=(P.xp/P.xpNext*100)+'%';
+  hudNodes.stf.style.width=(P.stamina/P.maxStamina*100)+'%';
+  hudNodes.stf.style.background=P.stamina<20?'linear-gradient(90deg,#550000,#cc2200)':P.sprinting?'linear-gradient(90deg,#007700,#44ff44)':'linear-gradient(90deg,#005500,#22cc44)';
   let echoText=P._echoBlessing?' | Echo: '+echoBlessingLabel():'';
   let skaldText=P._skaldBuff?' | Skald: '+skaldBuffLabel():'';
-document.getElementById('gold').textContent='Gold '+P.gold+'g | Dust '+relicDust()+(P.className?' | '+P.className:'')+(P.subclassId?(' / '+(CLASS_DEFS.find(c=>c.id===P.subclassId)?.name||'Subclass')):'')+((P.attrPoints||0)>0?(' | AP '+P.attrPoints):'')+((P.skillPoints||0)>0?(' | SP '+P.skillPoints):'')+echoText+skaldText+' | [I] Bag [K] Skills [F] Interact [Q] Potion('+countPotions()+') [Shift] Sprint [P] Pause [M] Audio';
-  document.getElementById('potion-count').textContent=countPotions();
-  skillCD.forEach((cd,i)=>{let el=document.getElementById('cd'+i);if(cd>0){el.style.display='flex';el.textContent=Math.ceil(cd/1000)+'s';}else el.style.display='none';});
+  hudNodes.gold.textContent='Gold '+P.gold+'g | Dust '+relicDust()+(P.className?' | '+P.className:'')+(P.subclassId?(' / '+(CLASS_DEFS.find(c=>c.id===P.subclassId)?.name||'Subclass')):'')+((P.attrPoints||0)>0?(' | AP '+P.attrPoints):'')+((P.skillPoints||0)>0?(' | SP '+P.skillPoints):'')+echoText+skaldText+' | [I] Bag [K] Skills [F] Interact [Q] Potion('+countPotions()+') [Shift] Sprint [P] Pause [M] Audio';
+  hudNodes.potionCount.textContent=countPotions();
+  for(let i=0;i<skillCD.length;i++){let cd=skillCD[i],el=hudNodes.cd[i];if(!el)continue;if(cd>0){el.style.display='flex';el.textContent=Math.ceil(cd/1000)+'s';}else el.style.display='none';}
 }
 
 // â”€â”€ INPUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

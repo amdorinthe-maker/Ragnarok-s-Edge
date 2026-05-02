@@ -527,6 +527,7 @@ const AssetLoader = {
         for (const cls of classes) {
             for (const state of states) {
                 let patterns = [];
+                let frameEnd = 4;
                 if (state === 'attack') {
                     const attackMap = {
                         berserker: 'attack_melee',
@@ -539,13 +540,14 @@ const AssetLoader = {
                         `assets/characters/${cls}/attack_{frame}.png`,
                         `assets/characters/${cls}/${cls}_attack_{frame}.svg`
                     ];
+                    frameEnd = 5;
                 } else {
                     patterns = [
                         `assets/characters/${cls}/${state}_{frame}.png`,
                         `assets/characters/${cls}/${cls}_${state}_{frame}.svg`
                     ];
                 }
-                await this.loadAnimationSequenceCandidates(`${cls}_${state}`, patterns, 1, 4);
+                await this.loadAnimationSequenceCandidates(`${cls}_${state}`, patterns, 1, frameEnd);
             }
 
             for (const variant of attackVariants) {
@@ -553,7 +555,7 @@ const AssetLoader = {
                     `assets/characters/${cls}/attack_${variant}_{frame}.png`,
                     `assets/characters/${cls}/${cls}_attack_${variant}_{frame}.svg`
                 ];
-                await this.loadAnimationSequenceCandidates(`${cls}_attack_${variant}`, variantPatterns, 1, 4);
+                await this.loadAnimationSequenceCandidates(`${cls}_attack_${variant}`, variantPatterns, 1, 5);
             }
         }
     },
