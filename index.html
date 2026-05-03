@@ -29,13 +29,7 @@
     <div class="sk" onclick="useSkill(3)"><span class="sk-glyph">--</span><span class="sk-key">4</span><div class="sk-cd" id="cd3" style="display:none"></div></div>
     <div class="sk" onclick="usePotion()" style="border-color:#ff4488"><span class="sk-glyph">HP</span><span class="sk-key">Q</span><span class="sk-count" id="potion-count">0</span></div>
   </div>
-  <div id="gold">Gold 0g | Ranger | [I] Bag [K] Skills [F] Interact [Q] Potion(0) [Shift] Sprint [P] Pause [M] Audio</div>
-  <div id="audio-hud">
-    <button class="audio-btn" id="audio-mute-btn" onclick="toggleAudioMute()">SFX On</button>
-    <label class="audio-group">Master <input id="audio-master" type="range" min="0" max="100" value="70" oninput="setAudioMaster(this.value)"></label>
-    <label class="audio-group">FX <input id="audio-effects" type="range" min="0" max="100" value="78" oninput="setAudioEffects(this.value)"></label>
-    <label class="audio-group">Amb <input id="audio-ambience" type="range" min="0" max="100" value="52" oninput="setAudioAmbience(this.value)"></label>
-  </div>
+  <div id="bottom-left-hud"><div id="status-bar"></div><div id="key-hints"></div></div>
   <div id="bossbar"><div id="bossname">BOSS</div><div id="bossbg"><div id="bossf" style="width:100%"></div></div></div>
   <div id="msg" style="opacity: 0;">Chosen class: <b>Ranger</b><br><small>Fast hunter with deadly arrows and sharper critical strikes.</small></div>
   <div id="dungeon-hud">
@@ -76,11 +70,7 @@
           <button class="inv-btn" id="salvage-common-btn" onclick="salvageAllCommon()">Salvage Commons</button>
           <button class="inv-btn" id="salvage-all-btn" onclick="salvageAllGear()">Salvage All Gear</button>
           <button class="inv-btn" id="inv-stash-btn" onclick="toggleStashMode()"><span id="stash-toggle-label">Open Stash</span></button>
-          <button class="inv-btn" onclick="confirmSaveGame()">Save</button>
-          <button class="inv-btn" onclick="confirmLoadGame()">Load</button>
-          <button class="inv-btn" id="inv-reclass-btn" onclick="openReclass()">Reclass</button>
-          <button class="inv-btn" onclick="openDebugMenu()">Debug</button>
-          <button class="inv-btn danger" onclick="dropAll()">Drop All</button>
+          <button class="inv-btn" onclick="openSettings()">Settings</button>
           <span style="color:#666;font-size:11px">Click=Equip/Use | Right-click=Drop</span>
         </div>
         <div style="margin:0 0 6px"><button class="inv-btn" onclick="openSkillTree()">Skills</button></div>
@@ -124,6 +114,40 @@
     <h2 id="class-panel-title">Choose Your Incarnation</h2>
     <p id="class-panel-copy">The fracture is still unstable. Choose which version of the Echo-Warrior answers the call, and Ravenwatch will arm that self for the descent ahead.</p>
     <div id="class-list"><div class="class-card" style="--class-accent: #d36c45;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">&#x1FA93;</span> Berserker</div><div class="class-role">Frontline Reaver</div></div><div class="class-pillar"><b>140</b><span>Vitality</span></div></div><div class="class-desc">Savage melee warrior who thrives in the thick of battle.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Berserker Axe, Leather Vest, and two Minor Heals.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Thrives in close combat with stronger melee damage and longer rage windows.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Best when you stay on top of enemies and force momentum.</div></div><div class="class-stats"><div class="class-stat"><b>140</b><span>HP</span></div><div class="class-stat"><b>14</b><span>ATK</span></div><div class="class-stat"><b>120</b><span>RUN</span></div></div><div class="class-select">Begin As Berserker</div></div><div class="class-card" style="--class-accent: #8fbf65;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">&#x1F3F9;</span> Ranger</div><div class="class-role">Mobile Hunter</div></div><div class="class-pillar"><b>95</b><span>Vitality</span></div></div><div class="class-desc">Fast hunter with deadly arrows and sharper critical strikes.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Hunter Longbow, Leather Vest, one heal, and one mana vial.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Excels with ranged power, bonus crit, and efficient sprint control.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Strongest when kiting, piercing lanes, and punishing openings.</div></div><div class="class-stats"><div class="class-stat"><b>2.50</b><span>SPD</span></div><div class="class-stat"><b>High</b><span>CRIT</span></div><div class="class-stat"><b>115</b><span>RUN</span></div></div><div class="class-select">Begin As Ranger</div></div><div class="class-card" style="--class-accent: #7ab8ff;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">&#x1F52E;</span> Runecaster</div><div class="class-role">Arcane Conduit</div></div><div class="class-pillar"><b>90</b><span>Vitality</span></div></div><div class="class-desc">Mystic adept with stronger skills, richer mana, and arcane control.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Storm Staff, Runecarved Tome, two mana vials, and one heal.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Higher skill power, better mana economy, and shorter cooldown cycles.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Controls space with spells and scales hard with runes and mana.</div></div><div class="class-stats"><div class="class-stat"><b>145</b><span>MP</span></div><div class="class-stat"><b>9</b><span>ATK</span></div><div class="class-stat"><b>Boosted</b><span>SPELL</span></div></div><div class="class-select">Begin As Runecaster</div></div><div class="class-card" style="--class-accent: #d7b15c;"><div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">&#x1F6E1;&#xFE0F;</span> Guardian</div><div class="class-role">Bulwark Warden</div></div><div class="class-pillar"><b>125</b><span>Vitality</span></div></div><div class="class-desc">Stoic defender who shrugs off punishment and endures the dungeon.</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">Draugr Sword, Warden Mail, Thor's Helm, and two Minor Heals.</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">Natural damage reduction and trap resistance make every floor steadier.</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">Absorbs pressure, holds corridors, and outlasts brutal rooms.</div></div><div class="class-stats"><div class="class-stat"><b>8</b><span>DEF</span></div><div class="class-stat"><b>125</b><span>HP</span></div><div class="class-stat"><b>Heavy</b><span>WARD</span></div></div><div class="class-select">Begin As Guardian</div></div></div>
+  </div>
+  <div class="panel" id="settings-panel" style="display: none;">
+    <h3>Settings</h3>
+    <div class="settings-group">
+      <div class="settings-group-title">Audio</div>
+      <div class="settings-row">
+        <button class="audio-btn" id="audio-mute-btn" onclick="toggleAudioMute()">SFX On</button>
+      </div>
+      <div class="settings-row">
+        <label class="settings-slider">Master <input id="audio-master" type="range" min="0" max="100" value="70" oninput="setAudioMaster(this.value)"></label>
+      </div>
+      <div class="settings-row">
+        <label class="settings-slider">FX <input id="audio-effects" type="range" min="0" max="100" value="78" oninput="setAudioEffects(this.value)"></label>
+      </div>
+      <div class="settings-row">
+        <label class="settings-slider">Ambience <input id="audio-ambience" type="range" min="0" max="100" value="52" oninput="setAudioAmbience(this.value)"></label>
+      </div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-title">Save &amp; Restore</div>
+      <div class="settings-row settings-row--buttons">
+        <button class="inv-btn" onclick="confirmSaveGame()">Save Game</button>
+        <button class="inv-btn" onclick="confirmLoadGame()">Load Game</button>
+        <button class="inv-btn" id="settings-reclass-btn" onclick="openReclass()">Reclass</button>
+      </div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-title">Tools</div>
+      <div class="settings-row settings-row--buttons">
+        <button class="inv-btn" onclick="openDebugMenu()">Debug Menu</button>
+        <button class="inv-btn danger" onclick="dropAll()">Drop All Items</button>
+      </div>
+    </div>
+    <button id="settings-close" onclick="closePanel()">Close [O]</button>
   </div>
   <div class="panel" id="chest-panel" style="display: none;">
     <h3>Treasure Chest!</h3><div id="chest-items"></div>

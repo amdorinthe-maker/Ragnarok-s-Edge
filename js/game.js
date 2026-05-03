@@ -3,7 +3,7 @@ const MM=document.getElementById('mm2'),mctx=MM.getContext('2d');
 let W=C.width=window.innerWidth,H=C.height=window.innerHeight;
 window.addEventListener('resize',()=>{W=C.width=window.innerWidth;H=C.height=window.innerHeight});
 const USE_PLACEHOLDER_SPRITES=true;
-const USE_SYNTH_SFX=false;
+const USE_SYNTH_SFX=true;
 
 // â”€â”€ TILE CONSTANTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const T=40,WS=80;
@@ -291,26 +291,54 @@ function updateAudioUI(){
 function createNoiseBuffer(ac){
   let buffer=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);
   let data=buffer.getChannelData(0);
-  for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*0.6;
+  // Pink noise via Paul Kellet's filter (warmer, more natural than white)
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for(let i=0;i<data.length;i++){
+    let w=Math.random()*2-1;
+    b0=0.99886*b0+w*0.0555179;
+    b1=0.99332*b1+w*0.0750759;
+    b2=0.96900*b2+w*0.1538520;
+    b3=0.86650*b3+w*0.3104856;
+    b4=0.55000*b4+w*0.5329522;
+    b5=-0.7616*b5-w*0.0168980;
+    let pink=b0+b1+b2+b3+b4+b5+b6+w*0.5362;
+    b6=w*0.115926;
+    data[i]=pink*0.18;
+  }
   return buffer;
 }
 function initAmbienceVoices(){
   if(!audioCtx||ambienceVoices)return ambienceVoices;
-  let droneOsc=audioCtx.createOscillator(),droneGain=audioCtx.createGain();
+  let ac=audioCtx;
+  // Drone: triangle through lowpass, slow LFO detune for organic warmth
+  let droneOsc=ac.createOscillator(),droneFilter=ac.createBiquadFilter(),droneGain=ac.createGain();
   droneOsc.type='triangle'; droneOsc.frequency.value=120; droneGain.gain.value=.0001;
-  droneOsc.connect(droneGain); droneGain.connect(audioAmbGain);
-  let shimmerOsc=audioCtx.createOscillator(),shimmerGain=audioCtx.createGain();
+  droneFilter.type='lowpass'; droneFilter.frequency.value=420; droneFilter.Q.value=.4;
+  let droneLfo=ac.createOscillator(),droneLfoGain=ac.createGain();
+  droneLfo.type='sine'; droneLfo.frequency.value=.13; droneLfoGain.gain.value=2.4;
+  droneLfo.connect(droneLfoGain); droneLfoGain.connect(droneOsc.frequency);
+  droneOsc.connect(droneFilter); droneFilter.connect(droneGain); droneGain.connect(audioAmbGain);
+  // Shimmer: sine through gentle highpass to keep airy but anti-rumble
+  let shimmerOsc=ac.createOscillator(),shimmerFilter=ac.createBiquadFilter(),shimmerGain=ac.createGain();
   shimmerOsc.type='sine'; shimmerOsc.frequency.value=240; shimmerGain.gain.value=.0001;
-  shimmerOsc.connect(shimmerGain); shimmerGain.connect(audioAmbGain);
-  let rumbleOsc=audioCtx.createOscillator(),rumbleGain=audioCtx.createGain();
-  rumbleOsc.type='sawtooth'; rumbleOsc.frequency.value=70; rumbleGain.gain.value=.0001;
-  rumbleOsc.connect(rumbleGain); rumbleGain.connect(audioAmbGain);
-  let noiseSource=audioCtx.createBufferSource(),noiseFilter=audioCtx.createBiquadFilter(),noiseGain=audioCtx.createGain();
-  noiseSource.buffer=createNoiseBuffer(audioCtx); noiseSource.loop=true;
-  noiseFilter.type='lowpass'; noiseFilter.frequency.value=900; noiseGain.gain.value=.0001;
+  shimmerFilter.type='lowpass'; shimmerFilter.frequency.value=2200; shimmerFilter.Q.value=.3;
+  let shimmerLfo=ac.createOscillator(),shimmerLfoGain=ac.createGain();
+  shimmerLfo.type='sine'; shimmerLfo.frequency.value=.21; shimmerLfoGain.gain.value=3.2;
+  shimmerLfo.connect(shimmerLfoGain); shimmerLfoGain.connect(shimmerOsc.frequency);
+  shimmerOsc.connect(shimmerFilter); shimmerFilter.connect(shimmerGain); shimmerGain.connect(audioAmbGain);
+  // Rumble: triangle (was sawtooth — that buzz was the broken-speaker culprit) through tight lowpass
+  let rumbleOsc=ac.createOscillator(),rumbleFilter=ac.createBiquadFilter(),rumbleGain=ac.createGain();
+  rumbleOsc.type='triangle'; rumbleOsc.frequency.value=70; rumbleGain.gain.value=.0001;
+  rumbleFilter.type='lowpass'; rumbleFilter.frequency.value=180; rumbleFilter.Q.value=.5;
+  rumbleOsc.connect(rumbleFilter); rumbleFilter.connect(rumbleGain); rumbleGain.connect(audioAmbGain);
+  // Noise wind: pink noise + lowpass at deeper cutoff with mild Q for body
+  let noiseSource=ac.createBufferSource(),noiseFilter=ac.createBiquadFilter(),noiseGain=ac.createGain();
+  noiseSource.buffer=createNoiseBuffer(ac); noiseSource.loop=true;
+  noiseFilter.type='lowpass'; noiseFilter.frequency.value=420; noiseFilter.Q.value=.7;
   noiseSource.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(audioAmbGain);
   droneOsc.start(); shimmerOsc.start(); rumbleOsc.start(); noiseSource.start();
-  ambienceVoices={droneOsc,droneGain,shimmerOsc,shimmerGain,rumbleOsc,rumbleGain,noiseSource,noiseFilter,noiseGain};
+  droneLfo.start(); shimmerLfo.start();
+  ambienceVoices={droneOsc,droneGain,droneFilter,shimmerOsc,shimmerGain,shimmerFilter,rumbleOsc,rumbleGain,rumbleFilter,noiseSource,noiseFilter,noiseGain};
   return ambienceVoices;
 }
 function ensureAudio(){
@@ -323,11 +351,11 @@ function ensureAudio(){
     audioFxGain=audioCtx.createGain();
     audioAmbGain=audioCtx.createGain();
     audioDynamics=audioCtx.createDynamicsCompressor();
-    audioDynamics.threshold.value=-26;
-    audioDynamics.knee.value=18;
-    audioDynamics.ratio.value=4;
-    audioDynamics.attack.value=.003;
-    audioDynamics.release.value=.18;
+    audioDynamics.threshold.value=-18;
+    audioDynamics.knee.value=24;
+    audioDynamics.ratio.value=2.6;
+    audioDynamics.attack.value=.012;
+    audioDynamics.release.value=.28;
     audioFxToneFilter=audioCtx.createBiquadFilter();
     audioFxToneFilter.type='lowpass';
     audioFxToneFilter.frequency.value=1700;
@@ -379,11 +407,13 @@ function audioTone(freq,dur=.09,type='sine',gain=.08,when=0,slideTo=null){
   let softenedType=type==='square'?'triangle':type==='sawtooth'?'triangle':type;
   osc.type=softenedType; osc.frequency.setValueAtTime(freq,t);
   if(slideTo)osc.frequency.exponentialRampToValueAtTime(Math.max(25,slideTo),t+dur);
+  let attackT=Math.min(.022,Math.max(.014,dur*.18));
+  let peak=Math.max(.0002,gain*.45);
   g.gain.setValueAtTime(.0001,t);
-  g.gain.exponentialRampToValueAtTime(Math.max(.0002,gain*.45),t+.012);
+  g.gain.exponentialRampToValueAtTime(peak,t+attackT);
   g.gain.exponentialRampToValueAtTime(.0001,t+dur);
   osc.connect(g); g.connect(audioFxGain);
-  osc.start(t); osc.stop(t+dur+.02);
+  osc.start(t); osc.stop(t+dur+.04);
 }
 function playSfx(name,scale=1){
   if(!USE_SYNTH_SFX)return;
@@ -1191,13 +1221,26 @@ function genWorld(){
   for(let y=0;y<WS;y++){world[y]=[];biome[y]=[];
     for(let x=0;x<WS;x++){
       let bi=0;biome[y][x]=bi;
+      let forestN=tileNoise(Math.floor(x/5)+11,Math.floor(y/5)+7);
+      let stoneN=tileNoise(Math.floor(x/4)+33,Math.floor(y/4)+91);
       let r=Math.random();
-      world[y][x]=r<.17?TILE.TREE:r<.032?TILE.STONE:r<.043?TILE.RUNE:TILE.GRASS;
+      let treeT=.03+forestN*.46;
+      let stoneT=stoneN>.68?.18:.018;
+      if(r<treeT)world[y][x]=TILE.TREE;
+      else if(r<treeT+stoneT)world[y][x]=TILE.STONE;
+      else world[y][x]=TILE.GRASS;
     }
   }
   let hubCx=Math.floor(WS*.5),hubCy=Math.floor(WS*.48),hubR=16;
   for(let y=0;y<WS;y++)for(let x=0;x<WS;x++)if(Math.hypot(x-hubCx,y-hubCy)>hubR+4){
-    world[y][x]=Math.random()<.78?TILE.TREE:Math.random()<.5?TILE.STONE:TILE.GRASS;
+    let forestN=tileNoise(Math.floor(x/4)+19,Math.floor(y/4)+5);
+    let stoneN=tileNoise(Math.floor(x/3)+47,Math.floor(y/3)+71);
+    let r=Math.random();
+    let treeT=.22+forestN*.32;
+    let stoneT=stoneN>.74?.18:.04;
+    if(r<treeT)world[y][x]=TILE.TREE;
+    else if(r<treeT+stoneT)world[y][x]=TILE.STONE;
+    else world[y][x]=TILE.GRASS;
   }
   for(let x=hubCx-10;x<=hubCx+11;x++){
     let ry=Math.floor(hubCy+8+Math.sin(x/4)*2);
@@ -1210,7 +1253,7 @@ function genWorld(){
   carveCircle(sx-6,sy+3,3,TILE.GRASS);
   for(let dy=-4;dy<=4;dy++)for(let dx=-6;dx<=6;dx++)if(Math.abs(dx)===6||Math.abs(dy)===4)setTile(sx+dx,sy+dy,TILE.STONE);
   const DPOS=[
-    {x:sx+10,y:sy-3,name:'Barrow Descent',routeId:'barrow'},
+    {x:sx+11,y:sy-9,name:'Barrow Descent',routeId:'barrow'},
     {x:sx+11,y:sy+9,name:'Ember Gate',routeId:'ember'},
     {x:sx-10,y:sy+8,name:'Seer Hollow',routeId:'seer'}
   ];
@@ -1230,43 +1273,43 @@ const MIDGARD_SITES=[
     {name:'Skald\'s Hearth',x:sx,y:sy+5,icon:'S',kind:'meadhall',actionLabel:'Hear Tale'},
     {name:'Huginn\'s Perch',x:sx-4,y:sy-11,icon:'H',kind:'watcher',actionLabel:'Contemplate',watcherId:'huginn',facing:'right'},
     {name:'Muninn\'s Roost',x:sx+4,y:sy-11,icon:'M',kind:'watcher',actionLabel:'Remember',watcherId:'muninn',facing:'left'},
-    {name:'Stone Circle',x:sx+9,y:sy+2,icon:'C',kind:'ruin',actionLabel:'Commune'},
-    {name:'Sacred Grove',x:sx-7,y:sy+8,icon:'G',kind:'grove',actionLabel:'Gather'},
-    {name:'Broken Bridge',x:sx+10,y:sy+8,icon:'B',kind:'bridge',actionLabel:'Search'},
-    {name:'Whispering Barrows',x:sx+11,y:sy+1,icon:'W',kind:'grave',actionLabel:'Disturb'},
-    {name:'Old Watchtower',x:sx+10,y:sy-7,icon:'T',kind:'tower',actionLabel:'Climb'}
+    {name:'Stone Circle',x:sx+9,y:sy+3,icon:'C',kind:'ruin',actionLabel:'Commune'},
+    {name:'Sacred Grove',x:sx-13,y:sy,icon:'G',kind:'grove',actionLabel:'Gather'},
+    {name:'Broken Bridge',x:sx+11,y:sy+9,icon:'B',kind:'bridge',actionLabel:'Search'},
+    {name:'Whispering Barrows',x:sx+14,y:sy+6,icon:'W',kind:'grave',actionLabel:'Disturb'},
+    {name:'Old Watchtower',x:sx+12,y:sy,icon:'T',kind:'tower',actionLabel:'Climb'}
   ];
-  carveCircle(sx+9,sy+2,4,TILE.STONE);
+  carveCircle(sx+9,sy+3,4,TILE.STONE);
   carveCircle(sx-7,sy-4,4,TILE.STONE);
   carveCircle(sx+7,sy-4,4,TILE.STONE);
   carveCircle(sx,sy+5,4,TILE.STONE);
   carveCircle(sx,sy-11,4,TILE.STONE);
-  carveCircle(sx-7,sy+8,4,TILE.GRASS);
-  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)if(Math.abs(dx)+Math.abs(dy)<4)setTile(sx+11+dx,sy+1+dy,TILE.STONE);
-  for(let dy=-3;dy<=3;dy++)for(let dx=-1;dx<=1;dx++)setTile(sx+10+dx,sy-7+dy,TILE.STONE);
-  for(let dx=-3;dx<=3;dx++)setTile(sx+10+dx,sy+8,TILE.STONE);
-  carveRoad(sx,sy,sx+9,sy+2,TILE.STONE,1);
-  carveRoad(sx,sy,sx-7,sy-4,TILE.STONE,1);
-  carveRoad(sx,sy,sx+7,sy-4,TILE.STONE,1);
-  carveRoad(sx,sy,sx,sy+5,TILE.STONE,1);
-  carveRoad(sx,sy,sx,sy-11,TILE.STONE,1);
-  carveRoad(sx+9,sy+2,sx+10,sy-3,TILE.STONE,1);
-  carveRoad(sx,sy,sx-7,sy+8,TILE.STONE,1);
-  carveRoad(sx,sy,sx+10,sy+8,TILE.STONE,1);
-  carveRoad(sx+10,sy+8,sx+11,sy+9,TILE.STONE,1);
-  carveRoad(sx,sy,sx-10,sy+8,TILE.STONE,1);
-  carveRoad(sx+10,sy+8,sx+11,sy+1,TILE.STONE,1);
-  carveCircle(sx-11,sy+3,4,TILE.STONE);
-  carveRoad(sx,sy,sx-11,sy+3,TILE.STONE,1);
+  carveCircle(sx-13,sy,4,TILE.GRASS);
+  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)if(Math.abs(dx)+Math.abs(dy)<4)setTile(sx+14+dx,sy+6+dy,TILE.STONE);
+  for(let dy=-3;dy<=3;dy++)for(let dx=-1;dx<=1;dx++)setTile(sx+12+dx,sy+dy,TILE.STONE);
+  for(let dx=-3;dx<=3;dx++)setTile(sx+11+dx,sy+9,TILE.STONE);
+  carveRoad(sx,sy,sx+9,sy+3,TILE.STONE,2);
+  carveRoad(sx,sy,sx-7,sy-4,TILE.STONE,2);
+  carveRoad(sx,sy,sx+7,sy-4,TILE.STONE,2);
+  carveRoad(sx,sy,sx,sy+5,TILE.STONE,2);
+  carveRoad(sx,sy,sx,sy-11,TILE.STONE,2);
+  carveRoad(sx+9,sy+3,sx+12,sy,TILE.STONE,2);
+  carveRoad(sx,sy,sx-13,sy,TILE.STONE,2);
+  carveRoad(sx,sy,sx+11,sy+9,TILE.STONE,2);
+  carveRoad(sx+11,sy+9,sx+14,sy+6,TILE.STONE,2);
+  carveRoad(sx,sy,sx-10,sy+8,TILE.STONE,2);
+  carveRoad(sx+11,sy+9,sx+11,sy-9,TILE.STONE,2);
+  carveCircle(sx-12,sy+5,4,TILE.STONE);
+  carveRoad(sx,sy,sx-12,sy+5,TILE.STONE,2);
   MIDGARD_SITES.forEach(site=>addLandmark(site.name,site.x,site.y,site.icon,site.kind,site));
-  addLandmark('Hall of Echoes',sx-11,sy+3,'E','sanctum',{name:'Hall of Echoes',x:sx-11,y:sy+3,icon:'E',kind:'sanctum',actionLabel:'Consecrate'});
+  addLandmark('Hall of Echoes',sx-12,sy+5,'E','sanctum',{name:'Hall of Echoes',x:sx-12,y:sy+5,icon:'E',kind:'sanctum',actionLabel:'Consecrate'});
   npcList=[
-    {wx:(sx-4)*T,wy:(sy+7)*T+6,name:'Bjorn the Smith',icon:'BJ',col:'#c8a000',dialog:0,role:'Forgekeeper',location:'Skald\'s Hearth',shopTitle:'Forge Wares',shopFlavor:'Weapons, armor, and sturdy supplies for delving below Midgard.',shopItems:[makeItem(5,1,1),makeItem(7,1,1),makeItem(1,1,1),makeItem(11,1,1)],isDungeon:false},
+    {wx:(sx)*T,wy:(sy+8)*T+6,name:'Bjorn the Smith',icon:'BJ',col:'#c8a000',dialog:0,role:'Forgekeeper',location:'Skald\'s Hearth',shopTitle:'Forge Wares',shopFlavor:'Weapons, armor, and sturdy supplies for delving below Midgard.',shopItems:[makeItem(5,1,1),makeItem(7,1,1),makeItem(1,1,1),makeItem(11,1,1)],isDungeon:false},
     {wx:(sx-10)*T,wy:(sy-2)*T+10,name:'Freya the Seer',icon:'FR',col:'#9b30ff',dialog:1,role:'Runespeaker',location:'Jarl\'s Lodge',shopTitle:'Runes & Elixirs',shopFlavor:'Runic charms, mana tonics, and relics for mystics and risk-takers.',shopItems:[makeItem(8,1,1),makeItem(10,1,1),{...POTIONS[3]},{...POTIONS[4]}],isDungeon:false},
-    {wx:(sx+4)*T,wy:(sy-6)*T+12,name:'Leif the Scout',icon:'LF',col:'#4a8b4a',dialog:2,role:'Pathfinder',location:'War Hall',shopTitle:'Trail Provisions',shopFlavor:'Field gear, light blades, and survivability tools for the roads of Midgard.',shopItems:[makeItem(14,1,1),makeItem(4,1,1),{...POTIONS[0]},{...POTIONS[1]}],isDungeon:false},
+    {wx:(sx+2)*T,wy:(sy-6)*T+12,name:'Leif the Scout',icon:'LF',col:'#4a8b4a',dialog:2,role:'Pathfinder',location:'War Hall',shopTitle:'Trail Provisions',shopFlavor:'Field gear, light blades, and survivability tools for the roads of Midgard.',shopItems:[makeItem(14,1,1),makeItem(4,1,1),{...POTIONS[0]},{...POTIONS[1]}],isDungeon:false},
     {wx:(sx+5)*T,wy:(sy-2)*T+14,name:'Sigrid the Elder',icon:'SG',col:'#c8a000',dialog:3,role:'Lorekeeper',location:'War Hall',shopTitle:'Relics & Remedies',shopFlavor:'Old wisdom, rare draughts, and relics gathered from sacred sites.',shopItems:[makeItem(8,1,1),makeItem(12,1,1),{...POTIONS[1]},{...POTIONS[3]}],isDungeon:false},
     {wx:(sx-4)*T,wy:(sy-6)*T+12,name:'Ivar the Wanderer',icon:'IV',col:'#8b6900',dialog:4,role:'Road Merchant',location:'Jarl\'s Lodge',shopTitle:'Traveler\'s Cache',shopFlavor:'A small but useful stash of wares for long walks and bad odds.',shopItems:[makeItem(4,1,1),makeItem(11,1,1),{...POTIONS[0]},{...POTIONS[3]}],isDungeon:false},
-    {wx:(sx+4)*T,wy:(sy+7)*T+6,name:'Gunnar the Berserker',icon:'GN',col:'#cc2200',dialog:5,role:'War-Trainer',location:'Skald\'s Hearth',shopTitle:'Battle Stock',shopFlavor:'Heavy steel, bruiser gear, and extra healing before the deeper fights.',shopItems:[makeItem(0,1,1),makeItem(15,1,1),{...POTIONS[0]},{...POTIONS[1]}],isDungeon:false},
+    {wx:(sx-6)*T,wy:(sy+4)*T+6,name:'Gunnar the Berserker',icon:'GN',col:'#cc2200',dialog:5,role:'War-Trainer',location:'Skald\'s Hearth',shopTitle:'Battle Stock',shopFlavor:'Heavy steel, bruiser gear, and extra healing before the deeper fights.',shopItems:[makeItem(0,1,1),makeItem(15,1,1),{...POTIONS[0]},{...POTIONS[1]}],isDungeon:false},
   ];
 }
 function setTile(x,y,t){if(x>=0&&x<WS&&y>=0&&y<WS)world[y][x]=t;}
@@ -1289,7 +1332,7 @@ function findMidgardSpawn(name='Ravenwatch'){
 genWorld();
 
 // â”€â”€ DUNGEON GENERATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const DW=64,DH=64,DTILE=32;
+const DW=64,DH=64,DTILE=40;
 let dmap=[],drooms=[],dtorches=[],dtraps=[],dchests=[],dspikes=[],dVendors=[],dForges=[];
 let dShrines=[],dPuzzles=[],dPoisonVents=[],dArrowTraps=[],dRuneTiles=[],dElites=[],dSecretRooms=[],dFloorEvents=[];
 let dbossRoom=null,dstairsPos=null,dungeonModifier=null,dungeonRevealed=[];
@@ -2322,6 +2365,41 @@ function spawnRing(x,y,col,count=14,r=10,isW=true){
 function spawnTrail(x,y,col,isW=true,count=5,spread=10){
   for(let i=0;i<count;i++)particles.push({x:x+(Math.random()-.5)*spread,y:y+(Math.random()-.5)*spread,vx:(Math.random()-.5)*.8,vy:(Math.random()-.5)*.8,col,life:.75,sz:2+Math.random()*2,isW,style:'mist',rot:0});
 }
+let ambientWorldTimer=0;
+const AMBIENT_LEAF_COLORS=['rgba(143,191,101,.55)','rgba(122,160,82,.5)','rgba(178,142,72,.5)','rgba(196,168,96,.45)','rgba(102,138,72,.55)'];
+const AMBIENT_DUST_COLORS=['rgba(218,210,188,.32)','rgba(196,180,148,.3)','rgba(232,222,198,.28)'];
+function spawnAmbientWorldParticle(){
+  if(!cam)return;
+  let leafy=Math.random()<.7;
+  let col=(leafy?AMBIENT_LEAF_COLORS:AMBIENT_DUST_COLORS)[Math.floor(Math.random()*(leafy?AMBIENT_LEAF_COLORS.length:AMBIENT_DUST_COLORS.length))];
+  let x=cam.x+Math.random()*W,y=cam.y-20+Math.random()*40;
+  let drift=.18+Math.random()*.22;
+  particles.push({
+    x,y,
+    vx:.08+Math.random()*.18,
+    vy:drift,
+    col,
+    life:1,
+    lifeRate:4500+Math.random()*2200,
+    sz:leafy?1.6+Math.random()*1.4:1.1+Math.random()*.9,
+    isW:true,
+    style:leafy?'leaf':'mist',
+    rot:Math.random()*Math.PI*2,
+    gravity:.0008,
+    swayAmp:.42+Math.random()*.55,
+    swayPeriod:900+Math.random()*700,
+    swayPhase:Math.random()*Math.PI*2,
+  });
+}
+function updateAmbientWorld(dt){
+  if(inDungeon)return;
+  ambientWorldTimer-=dt;
+  if(ambientWorldTimer<=0){
+    let count=1+Math.floor(Math.random()*2);
+    for(let i=0;i<count;i++)spawnAmbientWorldParticle();
+    ambientWorldTimer=320+Math.random()*420;
+  }
+}
 function bossFamilySigColor(family){
   return family==='grave'?'#d0b6ff':family==='ember'?'#ff7a2f':family==='serpent'?'#61d36d':family==='wolf'?'#f3deb0':'#a7a7ff';
 }
@@ -2468,6 +2546,57 @@ function drawShadow(x,y,rx,ry,alpha=.28){
   ctx.fillStyle=`rgba(0,0,0,${alpha})`;
   ctx.beginPath();
   ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);
+  ctx.fill();
+}
+// Time-of-day cycle (full day = WORLD_DAY_SECONDS).
+// t=0 midnight, t=0.25 dawn, t=0.5 noon, t=0.75 dusk.
+const WORLD_DAY_SECONDS=300;
+function worldTimeOfDay(){
+  let t=(Date.now()/1000/WORLD_DAY_SECONDS)%1;
+  // Sun position: elev = -1 midnight, 0 horizon, 1 noon
+  let elev=Math.sin(2*Math.PI*t-Math.PI/2);
+  // Sun X: +1 east at dawn, 0 noon, -1 west at dusk, 0 midnight
+  let sunX=Math.cos(2*Math.PI*t-Math.PI/2);
+  let lightLevel=Math.max(0,elev);
+  return {t,elev,sunX,lightLevel};
+}
+function getDayNightTint(){
+  let tod=worldTimeOfDay();
+  // Tint mixing across phases:
+  // Night (elev<-0.2): deep blue, dim
+  // Dawn (-0.2..0.2): warm orange wash
+  // Day (>0.2 < 0.7): nearly transparent
+  // Dusk: warm-blue
+  let elev=tod.elev,sunX=tod.sunX;
+  let tint;
+  if(elev<-0.4){
+    // Deep night
+    tint={r:18,g:30,b:60,a:.36};
+  }else if(elev<-0.05){
+    // Pre-dawn / late dusk transition
+    let f=(elev+.4)/.35; // 0..1
+    if(sunX>0)tint={r:Math.round(40+f*100),g:Math.round(40+f*40),b:Math.round(70-f*20),a:.32-f*.08}; // warming dawn
+    else tint={r:Math.round(40+f*60),g:Math.round(40+f*30),b:Math.round(70+f*30),a:.32-f*.08}; // cooling dusk
+  }else if(elev<.18){
+    // Dawn or dusk warm wash
+    let f=(elev+.05)/.23; // 0..1
+    if(sunX>0)tint={r:Math.round(220-f*60),g:Math.round(140-f*40),b:Math.round(80-f*30),a:.22-f*.14}; // dawn orange
+    else tint={r:Math.round(180-f*40),g:Math.round(110-f*30),b:Math.round(140-f*40),a:.22-f*.14}; // dusk magenta
+  }else{
+    // Day (mostly clear)
+    tint={r:255,g:230,b:200,a:.04};
+  }
+  return tint;
+}
+function drawCastShadow(sx,sy,halfW,halfH){
+  let tod=worldTimeOfDay();
+  if(tod.elev<.05)return; // no harsh shadow at night/twilight
+  let lengthMul=2.2-tod.elev*1.6; // shadow longer at horizon
+  let castX=-tod.sunX*halfW*lengthMul*.55;
+  let alpha=.22*tod.elev;
+  ctx.fillStyle=`rgba(8,10,16,${alpha})`;
+  ctx.beginPath();
+  ctx.ellipse(sx+castX,sy+halfH*.32,halfW*lengthMul*.85,halfH*.28,0,0,Math.PI*2);
   ctx.fill();
 }
 function drawLootSprite(l,sx,sy){
@@ -3986,11 +4115,19 @@ function drawPlayerSprite(sx, sy) {
 }
 
 function drawEnemySprite(e, sx, sy) {
+  ctx.save();
+  let _enemyScale = typeof CHAR_OVERLAY_SCALE !== 'undefined' ? CHAR_OVERLAY_SCALE : 1;
+  if (_enemyScale !== 1) {
+    ctx.translate(sx, sy);
+    ctx.scale(_enemyScale, _enemyScale);
+    ctx.translate(-sx, -sy);
+  }
   if (!USE_PLACEHOLDER_SPRITES || !AssetLoader || !AssetLoader.isLoaded) {
     drawEnemyFigure(sx, sy);
+    ctx.restore();
     return;
   }
-  
+
   ctx.save();
   let hitAmt = Math.max(0, Math.min(1, (e.hitFlash || 0) / 220));
   sx += (e.hitKickX || 0);
@@ -4150,9 +4287,11 @@ function drawEnemySprite(e, sx, sy) {
     AssetLoader.isLoaded = false;
     drawEnemyFigure(e, sx - (e.hitKickX || 0), sy - (e.hitKickY || 0) - bob);
     AssetLoader.isLoaded = wasLoaded;
+    ctx.restore();
     return;
   }
-  
+
+  ctx.restore();
   ctx.restore();
 }
 
@@ -4760,7 +4899,7 @@ function drawWorldNPCFigure(n,sx,sy){
       forgekeeper: 'forgekeeper',
       runespeaker: 'runespeaker',
       pathfinder: 'pathfinder',
-      lorekeeper: 'runespeaker',
+      lorekeeper: 'lorekeeper',
       merchant: 'merchant',
       trainer: 'trainer'
     };
@@ -4952,6 +5091,152 @@ function drawWorldNPCFigure(n,sx,sy){
   ctx.moveTo(sx-8,sy+3);ctx.lineTo(sx-13,sy+10);
   ctx.moveTo(sx+8,sy+3);ctx.lineTo(sx+13,sy+10);
   ctx.stroke();
+  // Per-role distinguishing prop / costume — kept tight to the body so it reads as part of the figure
+  let role=String(n.role||'').toLowerCase();
+  if(role==='forgekeeper'){
+    // Dark leather apron front panel (clearly attached to torso)
+    ctx.fillStyle='rgba(40,26,14,.7)';
+    ctx.fillRect(sx-7,sy-2,14,11);
+    // Apron strap
+    ctx.fillStyle='rgba(60,40,22,.7)';
+    ctx.fillRect(sx-7,sy-2,14,1.4);
+    // Apron pocket stitch
+    ctx.fillStyle='rgba(168,134,86,.32)';
+    ctx.fillRect(sx-4,sy+3,8,.8);
+    // Sooty smudge on cheek
+    ctx.fillStyle='rgba(20,14,10,.45)';
+    ctx.fillRect(sx+2,sy-13,3,2);
+    // Hammer held tight against the body (smaller, head meets fist)
+    ctx.fillStyle='#3a2818';
+    ctx.fillRect(sx+8,sy+1,1.3,8);
+    ctx.fillStyle='#5b5560';
+    ctx.fillRect(sx+6,sy-1,5,3);
+    ctx.fillStyle='rgba(255,255,255,.22)';
+    ctx.fillRect(sx+6,sy-1,5,.8);
+  }else if(role==='runespeaker'){
+    // Violet hood
+    ctx.fillStyle='rgba(98,76,138,.7)';
+    ctx.fillRect(sx-7,sy-22,14,3);
+    ctx.fillStyle='rgba(140,108,200,.45)';
+    ctx.fillRect(sx-5,sy-21,10,1);
+    // Staff held tight against right side (smaller than before)
+    let runeFlick=pulse(280,n.wx*.7+n.wy,.7,1);
+    ctx.fillStyle='#3d2a1a';
+    ctx.fillRect(sx+8,sy-18,1.4,28);
+    // Crystal head — diamond shape, smaller
+    ctx.fillStyle=`rgba(159,140,255,${.78+.18*runeFlick})`;
+    ctx.beginPath();ctx.moveTo(sx+8.5,sy-22);ctx.lineTo(sx+12,sy-19);ctx.lineTo(sx+8.5,sy-15);ctx.lineTo(sx+5,sy-19);ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.45)';
+    ctx.fillRect(sx+7,sy-20,1.5,1);
+    drawGlow(sx+8.5,sy-19,9,'rgb(159,140,255)',.16*runeFlick);
+  }else if(role==='pathfinder'){
+    // Hooded green cloak overlay (covers shoulders, drapes)
+    ctx.fillStyle='rgba(58,108,52,.6)';
+    ctx.beginPath();
+    ctx.moveTo(sx-9,sy-15);ctx.lineTo(sx-11,sy+9);ctx.lineTo(sx-5,sy+10);ctx.lineTo(sx-3,sy-12);ctx.closePath();ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(sx+9,sy-15);ctx.lineTo(sx+11,sy+9);ctx.lineTo(sx+5,sy+10);ctx.lineTo(sx+3,sy-12);ctx.closePath();ctx.fill();
+    // Hood top
+    ctx.fillStyle='rgba(78,128,68,.7)';
+    ctx.fillRect(sx-7,sy-22,14,3);
+    // Quiver behind shoulder (smaller, tucked)
+    ctx.fillStyle='#3a2418';
+    ctx.fillRect(sx-7,sy-7,2.4,9);
+    // Arrow fletchings (just on top)
+    ctx.fillStyle='rgba(143,191,101,.85)';
+    ctx.fillRect(sx-7,sy-9,1.2,2);ctx.fillRect(sx-5.4,sy-9,1.2,2);
+    // Belt with leather pouches
+    ctx.fillStyle='rgba(58,40,24,.7)';
+    ctx.fillRect(sx-7,sy+2,14,1.6);
+    ctx.fillStyle='#3a2618';
+    ctx.fillRect(sx-3,sy+3.6,3,2);
+  }else if(role==='lorekeeper'){
+    // Scholar's stole (gold-trimmed sash over the robe)
+    ctx.fillStyle='rgba(120,90,40,.55)';
+    ctx.fillRect(sx-7,sy-5,3,15);
+    ctx.fillRect(sx+4,sy-5,3,15);
+    ctx.fillStyle='rgba(215,177,92,.7)';
+    ctx.fillRect(sx-7,sy-5,3,1.4);
+    ctx.fillRect(sx+4,sy-5,3,1.4);
+    ctx.fillRect(sx-7,sy+8.6,3,1.4);
+    ctx.fillRect(sx+4,sy+8.6,3,1.4);
+    // Closed book held to chest (smaller, with spine + cover, hands hint)
+    ctx.fillStyle='#5d3e22';
+    ctx.fillRect(sx-4,sy+1,8,6);
+    ctx.fillStyle='#7a5230';
+    ctx.fillRect(sx-4,sy+1,8,1);
+    ctx.fillStyle='rgba(215,177,92,.65)';
+    ctx.fillRect(sx-4,sy+3,8,.8);
+    ctx.fillRect(sx-4,sy+5,8,.8);
+    // Hand outlines holding the book
+    ctx.fillStyle='#d8c39c';
+    ctx.fillRect(sx-5,sy+5,1.4,2);
+    ctx.fillRect(sx+3.6,sy+5,1.4,2);
+    // Long hair past the hood
+    ctx.fillStyle='rgba(195,170,120,.65)';
+    ctx.fillRect(sx-6,sy-12,1.8,7);
+    ctx.fillRect(sx+4.2,sy-12,1.8,7);
+  }else if(role==='road merchant'||role==='road_merchant'){
+    // Backpack tight against shoulders (clearly anchored)
+    ctx.fillStyle='#3d2818';
+    ctx.fillRect(sx-9,sy-5,4,11);
+    ctx.fillStyle='#5a3d22';
+    ctx.fillRect(sx-9,sy-6,4,1.6);
+    // Rolled blanket on top of pack
+    ctx.fillStyle='rgba(180,140,80,.7)';
+    ctx.fillRect(sx-9,sy-8,4,1.6);
+    ctx.fillStyle='rgba(120,82,42,.55)';
+    ctx.fillRect(sx-9,sy-7,4,.6);
+    // Strap across chest (clear diagonal connecting pack to opposite hip)
+    ctx.strokeStyle='rgba(58,40,24,.85)';
+    ctx.lineWidth=1.6;
+    ctx.beginPath();ctx.moveTo(sx-6,sy-3);ctx.lineTo(sx+5,sy+5);ctx.stroke();
+    // Walking staff held tight against right side
+    ctx.fillStyle='#4a311c';
+    ctx.fillRect(sx+7,sy-14,1.4,24);
+    ctx.fillStyle='#6c4a2a';
+    ctx.fillRect(sx+6.5,sy-14,2.4,1.4);
+    // Coin pouch at hip
+    ctx.fillStyle='#7a5d2c';
+    ctx.beginPath();ctx.ellipse(sx+5,sy+7,2.6,2.8,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(215,177,92,.55)';
+    ctx.fillRect(sx+4,sy+6.4,3,.8);
+  }else if(role==='war-trainer'||role==='war_trainer'||role==='trainer'){
+    // Heavy braided beard (anchored under chin, drops to chest)
+    ctx.fillStyle='#241710';
+    ctx.beginPath();
+    ctx.moveTo(sx-5,sy-13);ctx.lineTo(sx-6,sy-3);ctx.lineTo(sx-3,sy-1);
+    ctx.lineTo(sx+3,sy-1);ctx.lineTo(sx+6,sy-3);ctx.lineTo(sx+5,sy-13);
+    ctx.closePath();ctx.fill();
+    // Beard braid bands
+    ctx.fillStyle='rgba(168,140,80,.7)';
+    ctx.fillRect(sx-3.5,sy-7,7,1);
+    ctx.fillRect(sx-2.5,sy-4,5,.8);
+    // Leather shoulder pauldron (clearly placed)
+    ctx.fillStyle='rgba(58,40,24,.78)';
+    ctx.beginPath();ctx.ellipse(sx-9,sy-4,3.6,3.4,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(168,140,80,.5)';
+    ctx.fillRect(sx-11,sy-5,2,1.6);
+    // War axe held tight against right side, head NEAR the hand (not floating in front of head)
+    ctx.fillStyle='#3a2818';
+    ctx.fillRect(sx+8,sy-3,1.6,13);
+    // Axe head — anchored at top of shaft, blade flares right
+    ctx.fillStyle='#5e564b';
+    ctx.beginPath();
+    ctx.moveTo(sx+8,sy-5);
+    ctx.lineTo(sx+14,sy-3);
+    ctx.lineTo(sx+14,sy+3);
+    ctx.lineTo(sx+8,sy+1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle='#8d847a';
+    ctx.beginPath();
+    ctx.moveTo(sx+9,sy-4);ctx.lineTo(sx+13,sy-2.5);ctx.lineTo(sx+13,sy+1);ctx.lineTo(sx+9,sy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.22)';
+    ctx.fillRect(sx+9,sy-3.5,1,4);
+  }
   if((n.shopItems||[]).length>0)drawGlow(sx,sy,22,'rgb(215,177,92)',.09);
   ctx.restore();
   ctx.restore();
@@ -5929,7 +6214,7 @@ function clearTransientInput(){
 function openPanel(name){
   clearTransientInput();
   hideTip();
-  ['inv','npc','lu','skills','class','chest','upgrade','shrine','puzzle','descent','checkpoint','debug'].forEach(n=>document.getElementById(n+'-panel').style.display='none');
+  ['inv','npc','lu','skills','class','chest','upgrade','shrine','puzzle','descent','checkpoint','debug','settings'].forEach(n=>document.getElementById(n+'-panel').style.display='none');
   if(name==='class')initClassPanel();
   if(name==='skills')renderSkillTree();
   if(name)playSfx('ui',.85);
@@ -5945,6 +6230,7 @@ function beginRun(){
 
 // â”€â”€ INVENTORY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function openInv(){renderInv();openPanel('inv');}
+function openSettings(){updateAudioUI();openPanel('settings');}
 function toggleStashMode(){if(inDungeon){msg('âš ï¸ The stash is only accessible in Ravenwatch.',1400);return;}stashMode=!stashMode;renderInv();}
 function moveToStash(idx){
   let item=P.inv[idx];if(!item||isStackable(item))return;
@@ -6495,7 +6781,7 @@ function rewardLandmark(site,rewards={},headline=''){
   spawnParticle(lx,ly,site.kind==='grave'?'#9f8cff':'#d7b15c',18,true);
   if(headline)msg(headline,2800);
 }
-const SITE_KIND_SCALES={dungeon:1.80,portal:1.55,hall:1.35,meadhall:1.35,council:1.30,sanctum:1.25,village:1.25,tower:1.20,memorial:1.15};
+const SITE_KIND_SCALES={dungeon:1.80,portal:1.55,hall:1.35,meadhall:1.35,council:1.30,sanctum:1.25,village:1.25,tower:1.20,memorial:1.15,grove:1.30,bridge:1.20,grave:1.20,ruin:1.15};
 function drawWorldSiteSprite(site,sx,sy){
   ctx.save();
   ctx.textAlign='center';
@@ -6506,71 +6792,180 @@ function drawWorldSiteSprite(site,sx,sy){
     ctx.translate(-sx,-sy);
   }
   if(site.kind==='village'){
-    let hearth=pulse(180,site.x+site.y,.76,1),smokeDrift=Math.sin(Date.now()/1500+site.x)*3;
-    drawShadow(sx,sy+31,78,17,.24);
+    let hearth=pulse(180,site.x+site.y,.76,1),smokeDrift=Math.sin(Date.now()/1500+site.x)*3,bannerSway=Math.sin(Date.now()/420+site.x)*2.6;
+    drawCastShadow(sx,sy+33,82,18);
+    drawShadow(sx,sy+33,82,18,.26);
+    // Stone foundation course (extends below ground line)
+    ctx.fillStyle='#36312b';
+    ctx.fillRect(sx-66,sy+34,132,16);
+    ctx.fillStyle='#4d473e';
+    ctx.fillRect(sx-62,sy+30,124,5);
+    // Foundation stone segments (block pattern)
+    ctx.fillStyle='rgba(0,0,0,.18)';
+    for(let i=0;i<7;i++)ctx.fillRect(sx-58+i*19,sy+34,1.5,14);
+    // Wooden upper walls (darker base, lighter mid)
     ctx.fillStyle='#3f2c1f';
-    ctx.fillRect(sx-64,sy+8,128,38);
+    ctx.fillRect(sx-58,sy+8,116,26);
     ctx.fillStyle='#5e4430';
-    ctx.fillRect(sx-56,sy+12,112,13);
+    ctx.fillRect(sx-54,sy+12,108,11);
     ctx.fillStyle='#7d5b40';
-    ctx.fillRect(sx-48,sy-4,96,12);
-    ctx.fillStyle='#7c2432';
-    ctx.beginPath();ctx.moveTo(sx-78,sy+8);ctx.lineTo(sx-8,sy-50);ctx.lineTo(sx+76,sy+10);ctx.lineTo(sx+50,sy+12);ctx.lineTo(sx-52,sy+12);ctx.closePath();ctx.fill();
-    ctx.fillStyle='#6a1623';
-    ctx.beginPath();ctx.moveTo(sx-24,sy-12);ctx.lineTo(sx+8,sy-35);ctx.lineTo(sx+32,sy-16);ctx.closePath();ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.11)';
-    ctx.fillRect(sx-48,sy+15,96,2);
-    ctx.fillStyle='rgba(60,38,22,.24)';
-    ctx.fillRect(sx-64,sy+40,128,5);
-    ctx.fillStyle='#f0d29a';
-    ctx.fillRect(sx-12,sy+19,24,21);
-    ctx.fillRect(sx-43,sy+17,14,14);
-    ctx.fillRect(sx+29,sy+17,14,14);
-    ctx.fillRect(sx-57,sy+19,10,10);
-    ctx.fillRect(sx+47,sy+19,10,10);
-    ctx.fillStyle='#2f1f17';
-    ctx.fillRect(sx-15,sy+16,30,28);
-    ctx.fillRect(sx+18,sy+20,18,24);
-    ctx.fillStyle='rgba(215,177,92,.2)';
-    ctx.fillRect(sx-34,sy-18,68,5);
-    ctx.fillStyle='#6f4f13';
-    ctx.fillRect(sx-13,sy-24,26,7);
+    ctx.fillRect(sx-48,sy-2,96,11);
+    // Horizontal log courses
     ctx.fillStyle='rgba(255,255,255,.08)';
-    ctx.fillRect(sx-8,sy-22,16,2);
-    ctx.fillStyle='rgba(104,82,55,.2)';
-    ctx.fillRect(sx-16,sy+45,32,6);
-    ctx.fillRect(sx-12,sy+50,24,5);
-    ctx.fillRect(sx+18,sy+45,24,5);
-    ctx.fillStyle='#4a3424';
-    ctx.fillRect(sx-40,sy+41,14,3);
-    ctx.fillRect(sx+44,sy+42,10,3);
+    ctx.fillRect(sx-54,sy+14,108,1.5);
+    ctx.fillRect(sx-54,sy+22,108,1.5);
+    // Steep main roof
+    ctx.fillStyle='#6e1a26';
+    ctx.beginPath();ctx.moveTo(sx-72,sy+8);ctx.lineTo(sx,sy-58);ctx.lineTo(sx+72,sy+10);ctx.lineTo(sx+50,sy+10);ctx.lineTo(sx-50,sy+10);ctx.closePath();ctx.fill();
+    // Roof tier 2 (front gable)
+    ctx.fillStyle='#581520';
+    ctx.beginPath();ctx.moveTo(sx-28,sy-10);ctx.lineTo(sx+4,sy-40);ctx.lineTo(sx+34,sy-12);ctx.closePath();ctx.fill();
+    // Thatch shingles highlights
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    for(let i=0;i<4;i++){let ry=sy-50+i*14;ctx.fillRect(sx-50+i*8,ry,80-i*16,1);}
+    // Dragon-prow finials (curved heads at roof peaks)
+    ctx.fillStyle='#2c1812';
+    ctx.beginPath();ctx.moveTo(sx-72,sy+8);ctx.lineTo(sx-78,sy);ctx.lineTo(sx-74,sy+2);ctx.lineTo(sx-70,sy+6);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#3a221a';
+    ctx.beginPath();ctx.moveTo(sx-78,sy);ctx.lineTo(sx-82,sy-3);ctx.lineTo(sx-77,sy-4);ctx.lineTo(sx-74,sy);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#2c1812';
+    ctx.beginPath();ctx.moveTo(sx+72,sy+10);ctx.lineTo(sx+78,sy+2);ctx.lineTo(sx+74,sy+4);ctx.lineTo(sx+70,sy+8);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#3a221a';
+    ctx.beginPath();ctx.moveTo(sx+78,sy+2);ctx.lineTo(sx+82,sy-1);ctx.lineTo(sx+77,sy-2);ctx.lineTo(sx+74,sy+2);ctx.closePath();ctx.fill();
+    // Top peak finial (smaller dragon head)
+    ctx.fillStyle='#2c1812';
+    ctx.fillRect(sx-2,sy-62,4,8);
+    ctx.beginPath();ctx.moveTo(sx-3,sy-62);ctx.lineTo(sx+5,sy-66);ctx.lineTo(sx+3,sy-58);ctx.closePath();ctx.fill();
+    // Banner pole + raven banner
+    ctx.fillStyle='#1a1410';
+    ctx.fillRect(sx+20,sy-50,1.5,28);
+    ctx.fillStyle='#1a1f3a';
+    ctx.beginPath();ctx.moveTo(sx+22,sy-46);ctx.lineTo(sx+22+bannerSway+12,sy-44);ctx.lineTo(sx+22+bannerSway+10,sy-30);ctx.lineTo(sx+22,sy-32);ctx.closePath();ctx.fill();
+    // Raven sigil on banner (small)
+    ctx.fillStyle='rgba(220,220,230,.7)';
+    ctx.fillRect(sx+26+bannerSway,sy-40,3,2);
+    ctx.fillRect(sx+25+bannerSway,sy-39,5,1);
+    // Door + lit windows
+    ctx.fillStyle='#2f1f17';
+    ctx.fillRect(sx-15,sy+10,30,24);
+    ctx.fillStyle='#4a341f';
+    ctx.fillRect(sx-13,sy+12,26,3);
+    ctx.fillStyle='rgba(215,177,92,.55)';
+    ctx.fillRect(sx-12,sy+18,4,12);
+    ctx.fillRect(sx+8,sy+18,4,12);
+    // Lit windows on side wings
+    ctx.fillStyle='#f0d29a';
+    ctx.fillRect(sx-43,sy+15,12,12);
+    ctx.fillRect(sx+31,sy+15,12,12);
+    ctx.fillRect(sx-58,sy+18,8,8);
+    ctx.fillRect(sx+50,sy+18,8,8);
+    ctx.fillStyle='rgba(0,0,0,.4)';
+    ctx.fillRect(sx-42,sy+21,12,1);
+    ctx.fillRect(sx+32,sy+21,12,1);
+    // Chimney + smoke
+    ctx.fillStyle='#3a342d';
+    ctx.fillRect(sx+38,sy-22,8,12);
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.fillRect(sx+39,sy-22,2,12);
+    // Hearth glow + smoke
     ctx.fillStyle=`rgba(255,${Math.floor(155*hearth)},62,${.72*hearth})`;
-    ctx.beginPath();ctx.ellipse(sx+44,sy-1,5.8*hearth,8.1*hearth,0,0,Math.PI*2);ctx.fill();
-    drawGlow(sx+44,sy-1,26,'rgb(216,108,47)',.09);
-    ctx.fillStyle='rgba(220,220,230,.12)';
-    ctx.beginPath();ctx.ellipse(sx+44+smokeDrift*.35,sy-16,5,8,0,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.ellipse(sx+43+smokeDrift*.7,sy-29,7,10,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(sx+42,sy-23,3*hearth,4*hearth,0,0,Math.PI*2);ctx.fill();
+    drawGlow(sx+42,sy-23,16,'rgb(216,108,47)',.09);
+    ctx.fillStyle='rgba(220,220,230,.14)';
+    ctx.beginPath();ctx.ellipse(sx+42+smokeDrift*.35,sy-32,5,8,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(sx+41+smokeDrift*.7,sy-44,7,10,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(220,220,230,.08)';
+    ctx.beginPath();ctx.ellipse(sx+40+smokeDrift,sy-58,9,12,0,0,Math.PI*2);ctx.fill();
+    // Window light flicker (subtle warm pulse over the lit panes)
+    let villFlick=.82+Math.sin(Date.now()/180+site.x*.5)*.18;
+    ctx.fillStyle=`rgba(255,225,150,${.18*villFlick})`;
+    ctx.fillRect(sx-43,sy+15,12,12);ctx.fillRect(sx+31,sy+15,12,12);
+    ctx.fillRect(sx-58,sy+18,8,8);ctx.fillRect(sx+50,sy+18,8,8);
+    ctx.fillStyle=`rgba(255,210,130,${.20*villFlick})`;
+    ctx.fillRect(sx-12,sy+18,4,12);ctx.fillRect(sx+8,sy+18,4,12);
   }else if(site.kind==='tower'){
     let flutter=Math.sin(Date.now()/320+site.x*.4)*2.5,beacon=pulse(160,site.x+site.y,.8,1);
-    drawShadow(sx,sy+23,24,7,.22);
+    drawCastShadow(sx,sy+27,28,8);
+    drawShadow(sx,sy+27,28,8,.26);
+    // Stone foundation block (wider than tower)
+    ctx.fillStyle='#322d2a';
+    ctx.fillRect(sx-22,sy+18,44,12);
+    ctx.fillStyle='#494340';
+    ctx.fillRect(sx-22,sy+15,44,4);
+    // Tower shaft (tapered slightly inward at top)
     ctx.fillStyle='#4f4a58';
-    ctx.fillRect(sx-18,sy-48,36,66);
-    ctx.fillStyle='#706a79';
-    ctx.fillRect(sx-22,sy-51,44,7);
-    ctx.fillStyle='rgba(255,255,255,.06)';
-    ctx.fillRect(sx-14,sy-42,5,54);
-    ctx.fillRect(sx+4,sy-37,4,45);
-    ctx.fillStyle='#2f241d';
-    ctx.fillRect(sx-5,sy-14,10,24);
-    ctx.fillStyle='#f8da82';
-    ctx.fillRect(sx-4,sy-29,8,9);
-    ctx.fillStyle='#8d1730';
-    ctx.beginPath();ctx.moveTo(sx+2,sy-43);ctx.lineTo(sx+2,sy-33);ctx.lineTo(sx+15+flutter,sy-37);ctx.closePath();ctx.fill();
-    ctx.fillStyle=`rgba(248,218,130,${.58*beacon})`;
-    ctx.fillRect(sx-3,sy-45,6,4);
-    drawGlow(sx,sy-43,16,'rgb(248,218,130)',.08);
-    ctx.fillStyle='rgba(255,255,255,.04)';
-    ctx.fillRect(sx-14,sy-19,28,3);
+    ctx.fillRect(sx-17,sy-44,34,62);
+    // Vertical lighter highlight (sun side)
+    ctx.fillStyle='#5e5965';
+    ctx.fillRect(sx-17,sy-44,8,62);
+    // Stone-block courses
+    ctx.fillStyle='rgba(0,0,0,.22)';
+    for(let i=0;i<8;i++)ctx.fillRect(sx-17,sy-40+i*8,34,1.2);
+    // Vertical mortar lines (offset between courses)
+    ctx.fillStyle='rgba(0,0,0,.16)';
+    for(let i=0;i<8;i++){let off=(i%2)*8;ctx.fillRect(sx-13+off,sy-40+i*8,1,7);ctx.fillRect(sx-3+off,sy-40+i*8,1,7);ctx.fillRect(sx+7+off,sy-40+i*8,1,7);}
+    // Highlight stripe
+    ctx.fillStyle='rgba(255,255,255,.07)';
+    ctx.fillRect(sx-15,sy-40,3,58);
+    // Crenellated parapet at top
+    ctx.fillStyle='#5d5663';
+    ctx.fillRect(sx-22,sy-48,44,6);
+    ctx.fillStyle='#6e6776';
+    ctx.fillRect(sx-22,sy-49,44,2);
+    // Crenel notches
+    ctx.fillStyle='#0a080d';
+    ctx.fillRect(sx-18,sy-52,5,4);
+    ctx.fillRect(sx-7,sy-52,5,4);
+    ctx.fillRect(sx+4,sy-52,5,4);
+    ctx.fillRect(sx+15,sy-52,5,4);
+    // Crenel highlight
+    ctx.fillStyle='rgba(255,255,255,.08)';
+    ctx.fillRect(sx-22,sy-49,44,1);
+    // Tall narrow arched window with glow
+    ctx.fillStyle='#1c1814';
+    ctx.fillRect(sx-3,sy-30,6,18);
+    ctx.fillStyle='#2c241c';
+    ctx.beginPath();ctx.arc(sx,sy-30,3,Math.PI,Math.PI*2);ctx.fill();
+    ctx.fillStyle=`rgba(248,218,130,${.55*beacon})`;
+    ctx.fillRect(sx-2,sy-28,4,14);
+    drawGlow(sx,sy-22,12,'rgb(248,218,130)',.10*beacon);
+    // Lower arrow-slit
+    ctx.fillStyle='#1c1814';
+    ctx.fillRect(sx-1,sy-2,2,8);
+    // Heavy door at base
+    ctx.fillStyle='#2a1d14';
+    ctx.fillRect(sx-6,sy+6,12,12);
+    ctx.fillStyle='#3a2818';
+    ctx.beginPath();ctx.arc(sx,sy+6,6,Math.PI,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#1a120c';
+    ctx.beginPath();ctx.arc(sx,sy+6,4,Math.PI,Math.PI*2);ctx.fill();
+    // Iron door bands
+    ctx.fillStyle='rgba(120,110,98,.5)';
+    ctx.fillRect(sx-6,sy+10,12,1.5);
+    ctx.fillRect(sx-6,sy+15,12,1.5);
+    // Beacon brazier on top + flame
+    ctx.fillStyle='#3a342d';
+    ctx.fillRect(sx-5,sy-58,10,5);
+    ctx.fillStyle=`rgba(255,${Math.floor(195*beacon)},90,${.85*beacon})`;
+    ctx.beginPath();ctx.ellipse(sx,sy-62,5*beacon,7*beacon,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=`rgba(255,${Math.floor(150*beacon)},48,${.55*beacon})`;
+    ctx.beginPath();ctx.ellipse(sx,sy-66,3*beacon,5*beacon,0,0,Math.PI*2);ctx.fill();
+    drawGlow(sx,sy-62,22,'rgb(248,200,120)',.18*beacon);
+    // Beacon smoke (warm-tinted, lighter than chimney smoke)
+    let towerSmoke=Math.sin(Date.now()/1400+site.x*.4)*2.2;
+    ctx.fillStyle='rgba(240,225,205,.18)';
+    ctx.beginPath();ctx.ellipse(sx+towerSmoke*.4,sy-74,5,7,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(240,225,205,.12)';
+    ctx.beginPath();ctx.ellipse(sx+towerSmoke*.7,sy-84,7,9,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(240,225,205,.07)';
+    ctx.beginPath();ctx.ellipse(sx+towerSmoke,sy-96,9,12,0,0,Math.PI*2);ctx.fill();
+    // Banner on a side pole
+    ctx.fillStyle='#1a140d';
+    ctx.fillRect(sx+22,sy-50,1.5,20);
+    ctx.fillStyle='#7c2432';
+    ctx.beginPath();ctx.moveTo(sx+24,sy-46);ctx.lineTo(sx+24+flutter+11,sy-44);ctx.lineTo(sx+24+flutter+9,sy-32);ctx.lineTo(sx+24,sy-34);ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(248,218,130,.6)';
+    ctx.fillRect(sx+28+flutter,sy-39,2,3);
   }else if(site.kind==='dungeon'){
     let gatePulse=pulse(220,site.x+site.y,.78,1);
     drawShadow(sx,sy+20,34,9,.22);
@@ -6599,61 +6994,179 @@ function drawWorldSiteSprite(site,sx,sy){
     ctx.fillStyle='#b9a4ff';
     ctx.fillText('V',sx,sy+14);
   }else if(site.kind==='hall'){
-    let fire=pulse(170,site.x+site.y,.78,1);
-    drawShadow(sx,sy+26,58,12,.22);
-    ctx.fillStyle='#463021';
-    ctx.fillRect(sx-48,sy+4,96,32);
-    ctx.fillStyle='#725031';
-    ctx.beginPath();ctx.moveTo(sx-64,sy+4);ctx.lineTo(sx-18,sy-40);ctx.lineTo(sx+54,sy+6);ctx.lineTo(sx+34,sy+10);ctx.lineTo(sx-40,sy+10);ctx.closePath();ctx.fill();
-    ctx.fillStyle='#5c3d26';
-    ctx.fillRect(sx-54,sy+14,10,20);
-    ctx.fillRect(sx+39,sy+15,9,19);
-    ctx.fillStyle='rgba(255,255,255,.08)';
-    ctx.fillRect(sx-34,sy+9,64,2);
-    ctx.fillStyle='#2a1c15';
-    ctx.fillRect(sx-10,sy+14,20,22);
+    let fire=pulse(170,site.x+site.y,.78,1),banner=Math.sin(Date.now()/360+site.x)*2.6;
+    drawCastShadow(sx,sy+28,62,13);
+    drawShadow(sx,sy+28,62,13,.24);
+    // Stone foundation course
+    ctx.fillStyle='#3b352c';
+    ctx.fillRect(sx-50,sy+30,100,12);
+    ctx.fillStyle='#544c40';
+    ctx.fillRect(sx-46,sy+27,92,4);
+    // Dark log walls
+    ctx.fillStyle='#3d2918';
+    ctx.fillRect(sx-46,sy+4,92,28);
+    // Vertical log boards (martial, sturdy feel)
+    ctx.fillStyle='#5a3f24';
+    for(let i=0;i<10;i++)ctx.fillRect(sx-44+i*9.2,sy+4,1.5,28);
+    // Iron bands across the wall
+    ctx.fillStyle='#1c1814';
+    ctx.fillRect(sx-46,sy+11,92,2);
+    ctx.fillRect(sx-46,sy+24,92,2);
+    ctx.fillStyle='rgba(168,160,140,.42)';
+    for(let i=0;i<6;i++){ctx.fillRect(sx-42+i*16,sy+11,2,2);ctx.fillRect(sx-42+i*16,sy+24,2,2);}
+    // Steep peaked roof (martial pitch)
+    ctx.fillStyle='#5a2d1a';
+    ctx.beginPath();ctx.moveTo(sx-58,sy+4);ctx.lineTo(sx,sy-52);ctx.lineTo(sx+58,sy+6);ctx.lineTo(sx+42,sy+8);ctx.lineTo(sx-42,sy+8);ctx.closePath();ctx.fill();
+    // Roof shingle highlights
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    for(let i=0;i<4;i++){let ry=sy-42+i*12;ctx.fillRect(sx-40+i*10,ry,80-i*20,1);}
+    // Crossed-axe finial at peak
+    ctx.fillStyle='#3a2a1f';
+    ctx.fillRect(sx-1,sy-58,2,12);
+    // Axe heads (X-cross)
+    ctx.fillStyle='#7a7367';
+    ctx.beginPath();ctx.moveTo(sx-9,sy-56);ctx.lineTo(sx-3,sy-58);ctx.lineTo(sx-3,sy-50);ctx.lineTo(sx-9,sy-52);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(sx+9,sy-56);ctx.lineTo(sx+3,sy-58);ctx.lineTo(sx+3,sy-50);ctx.lineTo(sx+9,sy-52);ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,.3)';
+    ctx.fillRect(sx-8,sy-54,1,4);
+    ctx.fillRect(sx+7,sy-54,1,4);
+    // Banner pole + crimson banner
+    ctx.fillStyle='#1a140d';
+    ctx.fillRect(sx-22,sy-40,1.5,32);
+    ctx.fillStyle='#7c2432';
+    ctx.beginPath();ctx.moveTo(sx-21,sy-36);ctx.lineTo(sx-21+banner-14,sy-34);ctx.lineTo(sx-21+banner-12,sy-18);ctx.lineTo(sx-21,sy-20);ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(248,218,130,.7)';
+    ctx.fillRect(sx-30+banner,sy-29,4,2);
+    // Heavy iron-banded door (centered)
+    ctx.fillStyle='#1d140e';
+    ctx.fillRect(sx-9,sy+12,18,20);
+    ctx.fillStyle='#352620';
+    ctx.fillRect(sx-9,sy+12,18,2);
+    ctx.fillStyle='#4a3626';
+    ctx.fillRect(sx-9,sy+12,2,20);
+    ctx.fillRect(sx+7,sy+12,2,20);
+    // Iron door bands
+    ctx.fillStyle='#1c1814';
+    ctx.fillRect(sx-9,sy+18,18,2);
+    ctx.fillRect(sx-9,sy+26,18,2);
+    ctx.fillStyle='rgba(168,160,140,.5)';
+    ctx.fillRect(sx-7,sy+18,2,2);ctx.fillRect(sx+5,sy+18,2,2);
+    ctx.fillRect(sx-7,sy+26,2,2);ctx.fillRect(sx+5,sy+26,2,2);
+    // Door ring
+    ctx.strokeStyle='#a8a08c';
+    ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.arc(sx,sy+22,2,0,Math.PI*2);ctx.stroke();
+    // Lit narrow windows (slits, war-hall style)
     ctx.fillStyle='#d7b15c';
-    ctx.fillRect(sx-32,sy+16,9,9);
-    ctx.fillRect(sx+22,sy+17,8,8);
-    ctx.fillStyle='#5e4128';
-    ctx.fillRect(sx-38,sy+20,9,7);
-    ctx.fillRect(sx+30,sy+21,7,6);
-    ctx.fillStyle='#3b2719';
-    ctx.fillRect(sx+16,sy+19,13,17);
-    ctx.fillStyle='rgba(104,82,55,.18)';
-    ctx.fillRect(sx-12,sy+36,24,4);
-    ctx.fillRect(sx-34,sy+31,14,3);
-    ctx.fillRect(sx+24,sy+31,11,3);
-    ctx.fillStyle=`rgba(255,${Math.floor(148*fire)},65,${.68*fire})`;
-    ctx.beginPath();ctx.ellipse(sx+28,sy-6,4.2*fire,6.2*fire,0,0,Math.PI*2);ctx.fill();
+    ctx.fillRect(sx-32,sy+15,3,9);
+    ctx.fillRect(sx+29,sy+15,3,9);
+    // Brazier glow at corner
+    ctx.fillStyle=`rgba(255,${Math.floor(148*fire)},65,${.78*fire})`;
+    ctx.beginPath();ctx.ellipse(sx+30,sy-2,3.6*fire,5.4*fire,0,0,Math.PI*2);ctx.fill();
+    drawGlow(sx+30,sy-2,18,'rgb(216,108,47)',.10);
+    // Chimney + smoke (martial, dark grey smoke)
+    let warSmoke=Math.sin(Date.now()/1700+site.x)*2.4;
+    ctx.fillStyle='#2d2620';
+    ctx.fillRect(sx-30,sy-30,8,14);
+    ctx.fillStyle='#473d33';
+    ctx.fillRect(sx-30,sy-30,8,3);
+    ctx.fillStyle='rgba(180,170,160,.18)';
+    ctx.beginPath();ctx.ellipse(sx-26+warSmoke*.4,sy-38,5,7,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(180,170,160,.13)';
+    ctx.beginPath();ctx.ellipse(sx-27+warSmoke*.7,sy-48,7,9,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(180,170,160,.08)';
+    ctx.beginPath();ctx.ellipse(sx-28+warSmoke,sy-60,9,12,0,0,Math.PI*2);ctx.fill();
+    // Slit-window light flicker (war hall — colder amber)
+    let warFlick=.78+Math.sin(Date.now()/210+site.x*.6)*.22;
+    ctx.fillStyle=`rgba(255,200,110,${.24*warFlick})`;
+    ctx.fillRect(sx-32,sy+15,3,9);ctx.fillRect(sx+29,sy+15,3,9);
   }else if(site.kind==='meadhall'){
-    let fl=pulse(180,site.x+site.y,.76,1),smoke=Math.sin(Date.now()/1600+site.y)*2.5;
-    drawShadow(sx,sy+28,62,13,.22);
+    let fl=pulse(180,site.x+site.y,.76,1),smoke=Math.sin(Date.now()/1600+site.y)*2.5,lantern=pulse(240,site.x+site.y+1,.6,1);
+    drawCastShadow(sx,sy+28,72,14);
+    drawShadow(sx,sy+28,72,14,.24);
+    // Wider stone base (longhouse footprint)
+    ctx.fillStyle='#3a2f24';
+    ctx.fillRect(sx-62,sy+30,124,12);
+    ctx.fillStyle='#534438';
+    ctx.fillRect(sx-58,sy+27,116,4);
+    // Long warm-wood walls
     ctx.fillStyle='#5a3926';
-    ctx.fillRect(sx-54,sy+6,108,32);
+    ctx.fillRect(sx-58,sy+8,116,24);
+    // Subtle log course highlights
+    ctx.fillStyle='rgba(255,220,170,.06)';
+    ctx.fillRect(sx-58,sy+13,116,1);
+    ctx.fillRect(sx-58,sy+22,116,1);
+    // LOW-SLOPE longhouse roof (much shallower than War Hall's peak)
     ctx.fillStyle='#8a5d37';
-    ctx.beginPath();ctx.moveTo(sx-72,sy+6);ctx.lineTo(sx-8,sy-42);ctx.lineTo(sx+70,sy+8);ctx.lineTo(sx+38,sy+12);ctx.lineTo(sx-46,sy+12);ctx.closePath();ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.08)';
-    ctx.fillRect(sx-40,sy+11,80,2);
-    ctx.fillStyle='rgba(63,36,18,.2)';
-    ctx.fillRect(sx-48,sy+35,96,4);
-    ctx.fillStyle='#f1d08a';
-    ctx.fillRect(sx-12,sy+14,24,22);
-    ctx.fillRect(sx-40,sy+15,12,10);
-    ctx.fillRect(sx+30,sy+16,9,8);
-    ctx.fillStyle='#d7b15c';
-    ctx.fillRect(sx+30,sy-9,7,11);
-    ctx.fillRect(sx-48,sy+10,6,16);
-    ctx.fillRect(sx-41,sy+10,6,16);
-    ctx.fillStyle='#3a2619';
-    ctx.fillRect(sx+18,sy+18,16,20);
-    ctx.fillStyle='rgba(104,82,55,.18)';
-    ctx.fillRect(sx-16,sy+38,32,4);
-    ctx.fillRect(sx-39,sy+28,18,3);
-    ctx.fillStyle='rgba(255,145,45,.78)';
-    ctx.beginPath();ctx.ellipse(sx+30,sy-11,4.2*fl,6.2*fl,0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='rgba(225,225,235,.1)';
-    ctx.beginPath();ctx.ellipse(sx+30+smoke*.5,sy-23,5,8,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(sx-72,sy+8);ctx.lineTo(sx-30,sy-18);ctx.lineTo(sx+30,sy-18);ctx.lineTo(sx+72,sy+10);ctx.lineTo(sx+42,sy+10);ctx.lineTo(sx-42,sy+10);ctx.closePath();ctx.fill();
+    // Roof ridge cap
+    ctx.fillStyle='#a37047';
+    ctx.fillRect(sx-30,sy-19,60,3);
+    // Thatch/shingle highlights
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.fillRect(sx-50,sy-8,100,1);
+    ctx.fillRect(sx-58,sy+1,116,1);
+    // Decorative drinking-horn carving on front wall
+    ctx.strokeStyle='rgba(248,218,130,.45)';
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx-32,sy+18);
+    ctx.bezierCurveTo(sx-26,sy+15,sx-22,sy+22,sx-18,sy+18);
+    ctx.stroke();
+    // Big door (welcoming, wide arched)
+    ctx.fillStyle='#2a1c12';
+    ctx.fillRect(sx-12,sy+10,24,24);
+    ctx.fillStyle='#4a3624';
+    ctx.fillRect(sx-12,sy+10,24,3);
+    // Door arch top
+    ctx.fillStyle='#5d4128';
+    ctx.beginPath();ctx.arc(sx,sy+10,12,Math.PI,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#2a1c12';
+    ctx.beginPath();ctx.arc(sx,sy+10,9,Math.PI,Math.PI*2);ctx.fill();
+    // Warm welcoming door glow
+    ctx.fillStyle='rgba(248,200,120,.18)';
+    ctx.fillRect(sx-10,sy+14,20,18);
+    // Lit windows (warmer color than War Hall)
+    ctx.fillStyle='#f8d889';
+    ctx.fillRect(sx-44,sy+15,11,11);
+    ctx.fillRect(sx+33,sy+15,11,11);
+    ctx.fillRect(sx-58,sy+18,8,8);
+    ctx.fillRect(sx+50,sy+18,8,8);
+    // Window crossbars
+    ctx.fillStyle='rgba(0,0,0,.35)';
+    ctx.fillRect(sx-44,sy+20,11,1);ctx.fillRect(sx-39,sy+15,1,11);
+    ctx.fillRect(sx+33,sy+20,11,1);ctx.fillRect(sx+38,sy+15,1,11);
+    // Hanging lantern at door
+    ctx.fillStyle='#1a1410';
+    ctx.fillRect(sx+14,sy-2,1.5,12);
+    ctx.fillStyle='#3a2e22';
+    ctx.fillRect(sx+12,sy+10,5,4);
+    ctx.fillStyle=`rgba(255,${Math.floor(195*lantern)},90,${.85*lantern})`;
+    ctx.fillRect(sx+13,sy+11,3,2);
+    drawGlow(sx+14,sy+12,12,'rgb(248,200,120)',.14*lantern);
+    // Tall chimney (taller than before, with active smoke)
+    ctx.fillStyle='#3a342d';
+    ctx.fillRect(sx+24,sy-32,10,16);
+    ctx.fillStyle='#544a3e';
+    ctx.fillRect(sx+24,sy-32,10,3);
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.fillRect(sx+25,sy-32,2,16);
+    // Hearth fire glow
+    ctx.fillStyle=`rgba(255,${Math.floor(155*fl)},65,${.82*fl})`;
+    ctx.beginPath();ctx.ellipse(sx+29,sy-32,3*fl,4*fl,0,0,Math.PI*2);ctx.fill();
+    drawGlow(sx+29,sy-32,18,'rgb(216,108,47)',.12);
+    // Multiple smoke puffs (active hearth)
+    ctx.fillStyle='rgba(225,225,235,.22)';
+    ctx.beginPath();ctx.ellipse(sx+29+smoke*.4,sy-42,5,7,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(225,225,235,.16)';
+    ctx.beginPath();ctx.ellipse(sx+28+smoke*.7,sy-52,7,9,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(225,225,235,.10)';
+    ctx.beginPath();ctx.ellipse(sx+27+smoke,sy-64,9,12,0,0,Math.PI*2);ctx.fill();
+    // Window light flicker (meadhall — warmer, more lively)
+    let meadFlick=.78+Math.sin(Date.now()/160+site.x*.7)*.22;
+    ctx.fillStyle=`rgba(255,220,140,${.22*meadFlick})`;
+    ctx.fillRect(sx-44,sy+15,11,11);ctx.fillRect(sx+33,sy+15,11,11);
+    ctx.fillRect(sx-58,sy+18,8,8);ctx.fillRect(sx+50,sy+18,8,8);
   }else if(site.kind==='memorial'){
     drawShadow(sx,sy+14,17,5,.18);
     ctx.fillStyle='#66616d';
@@ -6668,120 +7181,488 @@ function drawWorldSiteSprite(site,sx,sy){
     ctx.fillRect(sx-1,sy-4,2,14);
     drawGlow(sx,sy+1,18,'rgb(159,140,255)',.08);
   }else if(site.kind==='council'){
-    let banner=Math.sin(Date.now()/360+site.x)*2.8;
-    drawShadow(sx,sy+28,62,13,.22);
+    let banner=Math.sin(Date.now()/360+site.x)*2.8,runeGlow=pulse(360,site.x+site.y,.7,1);
+    drawCastShadow(sx,sy+30,68,14);
+    drawShadow(sx,sy+30,68,14,.24);
+    // Stone foundation course (elevated council)
+    ctx.fillStyle='#3a3128';
+    ctx.fillRect(sx-58,sy+30,116,14);
+    ctx.fillStyle='#544a3e';
+    ctx.fillRect(sx-54,sy+27,108,4);
+    // Porch step extending forward
+    ctx.fillStyle='#4d4338';
+    ctx.fillRect(sx-22,sy+38,44,7);
+    ctx.fillStyle='#3b332b';
+    ctx.fillRect(sx-22,sy+44,44,2);
+    // Lower tier walls (wider base)
     ctx.fillStyle='#40302a';
-    ctx.fillRect(sx-54,sy+6,108,32);
+    ctx.fillRect(sx-54,sy+10,108,22);
+    // Subtle log courses
+    ctx.fillStyle='rgba(180,140,90,.12)';
+    ctx.fillRect(sx-54,sy+15,108,1);
+    ctx.fillRect(sx-54,sy+24,108,1);
+    // Upper tier (recessed, narrower) — gives multi-tier silhouette
+    ctx.fillStyle='#372822';
+    ctx.fillRect(sx-38,sy-6,76,16);
+    ctx.fillStyle='rgba(180,140,90,.10)';
+    ctx.fillRect(sx-38,sy-2,76,1);
+    // Lower roof skirt
+    ctx.fillStyle='#5a4438';
+    ctx.beginPath();ctx.moveTo(sx-66,sy+10);ctx.lineTo(sx-44,sy-2);ctx.lineTo(sx+44,sy-2);ctx.lineTo(sx+66,sy+10);ctx.lineTo(sx+44,sy+10);ctx.lineTo(sx-44,sy+10);ctx.closePath();ctx.fill();
+    // Upper roof (jarl's hall peak)
     ctx.fillStyle='#6c5547';
-    ctx.beginPath();ctx.moveTo(sx-70,sy+6);ctx.lineTo(sx-20,sy-38);ctx.lineTo(sx+66,sy+8);ctx.lineTo(sx+28,sy+12);ctx.lineTo(sx-48,sy+12);ctx.closePath();ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.08)';
-    ctx.fillRect(sx-40,sy+11,80,2);
-    ctx.fillStyle='rgba(63,36,18,.2)';
-    ctx.fillRect(sx-48,sy+35,96,4);
-    ctx.fillStyle='#d7b15c';
-    ctx.fillRect(sx-8,sy-20,14,16);
-    ctx.fillRect(sx-30,sy+14,10,13);
-    ctx.fillRect(sx+26,sy+14,8,9);
-    ctx.fillStyle='#2a1a12';
-    ctx.fillRect(sx-16,sy+14,32,24);
-    ctx.fillStyle='#4c382a';
-    ctx.fillRect(sx+20,sy+18,14,20);
-    ctx.fillRect(sx-47,sy+18,10,14);
-    ctx.fillStyle='rgba(215,177,92,.16)';
-    ctx.fillRect(sx-40,sy+11,80,2);
-    ctx.fillStyle='rgba(104,82,55,.18)';
-    ctx.fillRect(sx-16,sy+38,32,4);
-    ctx.fillRect(sx-44,sy+33,10,3);
+    ctx.beginPath();ctx.moveTo(sx-46,sy-6);ctx.lineTo(sx-12,sy-46);ctx.lineTo(sx+10,sy-46);ctx.lineTo(sx+46,sy-6);ctx.lineTo(sx+30,sy-3);ctx.lineTo(sx-30,sy-3);ctx.closePath();ctx.fill();
+    // Roof ridge cap
+    ctx.fillStyle='#82684f';
+    ctx.fillRect(sx-12,sy-47,24,3);
+    // Roof shingle highlights
+    ctx.fillStyle='rgba(255,255,255,.07)';
+    ctx.fillRect(sx-40,sy-2,80,1);
+    ctx.fillRect(sx-30,sy-22,60,1);
+    // Carved rune lintel above the door (the jarl's authority beam)
+    ctx.fillStyle='#3a2e22';
+    ctx.fillRect(sx-22,sy+8,44,5);
+    ctx.fillStyle='#5d4a36';
+    ctx.fillRect(sx-22,sy+8,44,1.5);
+    // Glowing rune marks on the lintel
+    let runeAlpha=.4+.35*runeGlow;
+    ctx.fillStyle='rgba(215,177,92,'+runeAlpha+')';
+    ctx.fillRect(sx-16,sy+10,2,2);
+    ctx.fillRect(sx-9,sy+10,3,2);
+    ctx.fillRect(sx-1,sy+10,2,2);
+    ctx.fillRect(sx+6,sy+10,3,2);
+    ctx.fillRect(sx+14,sy+10,2,2);
+    drawGlow(sx,sy+11,28,'rgb(215,177,92)',.07*runeGlow);
+    // Tall arched door (council-grade, not warlike)
+    ctx.fillStyle='#1c1209';
+    ctx.fillRect(sx-10,sy+14,20,24);
+    ctx.fillStyle='#3a2718';
+    ctx.beginPath();ctx.arc(sx,sy+14,10,Math.PI,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#1c1209';
+    ctx.beginPath();ctx.arc(sx,sy+14,7,Math.PI,Math.PI*2);ctx.fill();
+    // Brass door details
+    ctx.fillStyle='rgba(215,177,92,.55)';
+    ctx.fillRect(sx-1,sy+22,2,2);
+    // Lit windows (gold-warm, narrow tall)
+    ctx.fillStyle='#f0d29a';
+    ctx.fillRect(sx-32,sy+15,7,14);
+    ctx.fillRect(sx+25,sy+15,7,14);
+    ctx.fillStyle='rgba(0,0,0,.4)';
+    ctx.fillRect(sx-32,sy+22,7,1);
+    ctx.fillRect(sx+25,sy+22,7,1);
+    // Banner pole on roof peak
+    ctx.fillStyle='#1a140d';
+    ctx.fillRect(sx-1,sy-58,2,12);
+    // Council banner (dark crimson)
     ctx.fillStyle='#7c2432';
-    ctx.beginPath();ctx.moveTo(sx+10,sy-14);ctx.lineTo(sx+10,sy-2);ctx.lineTo(sx+27+banner,sy-8);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(sx+1,sy-54);ctx.lineTo(sx+banner+18,sy-52);ctx.lineTo(sx+banner+16,sy-38);ctx.lineTo(sx+1,sy-40);ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(215,177,92,.6)';
+    ctx.fillRect(sx+8+banner,sy-48,2,4);
+    // Stone chimney + warm smoke
+    let lodgeSmoke=Math.sin(Date.now()/1500+site.x*.3)*2.2,lodgeFire=pulse(220,site.x+site.y,.7,1);
+    ctx.fillStyle='#3a342d';
+    ctx.fillRect(sx-32,sy-26,8,14);
+    ctx.fillStyle='#544a3e';
+    ctx.fillRect(sx-32,sy-26,8,3);
+    ctx.fillStyle=`rgba(255,${Math.floor(155*lodgeFire)},65,${.6*lodgeFire})`;
+    ctx.beginPath();ctx.ellipse(sx-28,sy-26,2.4*lodgeFire,3*lodgeFire,0,0,Math.PI*2);ctx.fill();
+    drawGlow(sx-28,sy-26,12,'rgb(216,108,47)',.09);
+    ctx.fillStyle='rgba(220,210,195,.18)';
+    ctx.beginPath();ctx.ellipse(sx-28+lodgeSmoke*.4,sy-36,5,7,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(220,210,195,.13)';
+    ctx.beginPath();ctx.ellipse(sx-29+lodgeSmoke*.7,sy-46,7,9,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(220,210,195,.08)';
+    ctx.beginPath();ctx.ellipse(sx-30+lodgeSmoke,sy-58,9,12,0,0,Math.PI*2);ctx.fill();
+    // Window light flicker (council — gold/measured)
+    let lodgeFlick=.84+Math.sin(Date.now()/200+site.x*.4)*.16;
+    ctx.fillStyle=`rgba(255,215,130,${.20*lodgeFlick})`;
+    ctx.fillRect(sx-32,sy+15,7,14);ctx.fillRect(sx+25,sy+15,7,14);
   }else if(site.kind==='sanctum'){
-    drawShadow(sx,sy+17,24,7,.2);
-    ctx.fillStyle='#32404e';
-    ctx.beginPath();ctx.moveTo(sx,sy-28);ctx.lineTo(sx-18,sy-4);ctx.lineTo(sx-14,sy+19);ctx.lineTo(sx+14,sy+19);ctx.lineTo(sx+18,sy-4);ctx.closePath();ctx.fill();
-    ctx.fillStyle='#8ecaf4';
-    ctx.fillRect(sx-2,sy-16,4,26);
-    ctx.fillRect(sx-12,sy+1,24,4);
+    let braz=pulse(220,site.x+site.y,.74,1);
+    drawShadow(sx,sy+22,32,9,.24);
+    // Stone foundation (3 steps)
+    ctx.fillStyle='#2c333d';
+    ctx.fillRect(sx-26,sy+18,52,8);
+    ctx.fillStyle='#3d4452';
+    ctx.fillRect(sx-22,sy+12,44,6);
+    ctx.fillStyle='#525968';
+    ctx.fillRect(sx-18,sy+8,36,4);
+    // Two stone pillars
+    ctx.fillStyle='#6c7686';
+    ctx.fillRect(sx-15,sy-12,8,22);
+    ctx.fillRect(sx+7,sy-12,8,22);
+    ctx.fillStyle='#828b9b';
+    ctx.fillRect(sx-16,sy-13,10,3);
+    ctx.fillRect(sx+6,sy-13,10,3);
+    // Roof slab
+    ctx.fillStyle='#414857';
+    ctx.beginPath();ctx.moveTo(sx-22,sy-13);ctx.lineTo(sx,sy-26);ctx.lineTo(sx+22,sy-13);ctx.lineTo(sx+18,sy-10);ctx.lineTo(sx-18,sy-10);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#5a6273';
+    ctx.beginPath();ctx.moveTo(sx-21,sy-13);ctx.lineTo(sx,sy-25);ctx.lineTo(sx+21,sy-13);ctx.closePath();ctx.fill();
+    // Highlight
     ctx.fillStyle='rgba(255,255,255,.08)';
-    ctx.fillRect(sx-9,sy+6,18,2);
-    ctx.fillStyle='rgba(12,18,28,.2)';
-    ctx.fillRect(sx-7,sy+10,14,5);
-    drawGlow(sx,sy+4,24,'rgb(142,202,244)',.12);
+    ctx.fillRect(sx-14,sy-10,3,18);
+    ctx.fillRect(sx+11,sy-10,3,18);
+    // Inner doorway shadow with rune glow
+    ctx.fillStyle='#0d1018';
+    ctx.fillRect(sx-6,sy-9,12,18);
+    ctx.fillStyle=`rgba(142,202,244,${.6*braz})`;
+    ctx.fillRect(sx-3,sy-2,6,3);
+    // Brazier on roof peak
+    ctx.fillStyle='#3d3a4a';
+    ctx.fillRect(sx-3,sy-30,6,4);
+    ctx.fillStyle=`rgba(142,202,244,${.85*braz})`;
+    ctx.beginPath();ctx.ellipse(sx,sy-32,3.5*braz,4.5*braz,0,0,Math.PI*2);ctx.fill();
+    drawGlow(sx,sy-30,18,'rgb(142,202,244)',.18*braz);
+    drawGlow(sx,sy+2,22,'rgb(142,202,244)',.10);
   }else if(site.kind==='grave'){
-    drawShadow(sx,sy+14,18,5,.18);
-    ctx.fillStyle='#5b5662';
-    ctx.fillRect(sx-10,sy-2,20,20);
-    ctx.fillStyle='#746f7b';
-    ctx.fillRect(sx-6,sy-7,12,6);
-    ctx.fillStyle='rgba(255,255,255,.05)';
-    ctx.fillRect(sx-4,sy-1,8,2);
-    ctx.fillStyle='rgba(159,140,255,.18)';
-    ctx.fillRect(sx-11,sy-1,22,2);
+    let wisp=pulse(280,site.x+site.y,.7,1);
+    drawShadow(sx,sy+18,40,10,.26);
+    // Barrow mound (semi-ellipse, earth-toned)
+    ctx.fillStyle='#3a3328';
+    ctx.beginPath();ctx.ellipse(sx,sy+12,32,18,0,Math.PI,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#48402f';
+    ctx.beginPath();ctx.ellipse(sx,sy+10,28,14,0,Math.PI,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#564a35';
+    ctx.beginPath();ctx.ellipse(sx,sy+8,22,10,0,Math.PI,Math.PI*2);ctx.fill();
+    // Mossy patches on top
+    ctx.fillStyle='rgba(82,108,52,.55)';
+    ctx.beginPath();ctx.ellipse(sx-12,sy+2,7,3,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(sx+8,sy,9,3.5,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(sx-3,sy-4,5,2.5,0,0,Math.PI*2);ctx.fill();
+    // Stone entry slabs (lintel + posts)
+    ctx.fillStyle='#3c3640';
+    ctx.fillRect(sx-9,sy+2,5,16);
+    ctx.fillRect(sx+4,sy+2,5,16);
+    ctx.fillRect(sx-11,sy-1,22,4);
+    ctx.fillStyle='#544c5a';
+    ctx.fillRect(sx-9,sy+2,2,16);
+    ctx.fillRect(sx+4,sy+2,2,16);
+    ctx.fillStyle='rgba(255,255,255,.07)';
+    ctx.fillRect(sx-10,sy-1,20,1);
+    // Dark doorway with violet glow
+    ctx.fillStyle='#06060c';
+    ctx.fillRect(sx-4,sy+3,8,15);
+    ctx.fillStyle=`rgba(159,140,255,${.55*wisp})`;
+    ctx.fillRect(sx-2,sy+10,4,3);
+    drawGlow(sx,sy+8,18,'rgb(159,140,255)',.15*wisp);
+    // Cairn stones flanking
+    ctx.fillStyle='#5d5560';
+    ctx.fillRect(sx-22,sy+10,5,9);
+    ctx.fillRect(sx-19,sy+6,4,4);
+    ctx.fillRect(sx+17,sy+10,5,9);
+    ctx.fillRect(sx+14,sy+6,4,4);
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.fillRect(sx-22,sy+10,1.5,9);
+    ctx.fillRect(sx+17,sy+10,1.5,9);
   }else if(site.kind==='ruin'){
-    drawShadow(sx,sy+13,18,4,.18);
-    ctx.fillStyle='#6f716f';
-    ctx.fillRect(sx-14,sy-6,9,24);
-    ctx.fillRect(sx+4,sy-2,8,20);
-    ctx.fillStyle='#8f8870';
-    ctx.fillRect(sx-15,sy-8,11,4);
-    ctx.fillRect(sx+3,sy-4,10,3);
-    ctx.fillStyle='rgba(255,255,255,.05)';
-    ctx.fillRect(sx-12,sy-2,5,12);
-    ctx.fillRect(sx+6,sy+1,4,9);
-    ctx.fillStyle='rgba(159,140,255,.26)';
-    ctx.fillText('R',sx,sy+15);
+    let runePulse=pulse(420,site.x+site.y,.65,1);
+    drawShadow(sx,sy+16,30,8,.24);
+    // Circle of 7 standing stones (perspective-skewed ellipse layout)
+    let stones=[
+      {ox:-22,oy:6,h:18,w:7},
+      {ox:-14,oy:-3,h:22,w:6,broken:true},
+      {ox:-2,oy:-7,h:24,w:7},
+      {ox:10,oy:-5,h:20,w:6},
+      {ox:20,oy:4,h:16,w:6},
+      {ox:14,oy:11,h:14,w:5},
+      {ox:-10,oy:11,h:16,w:6}
+    ];
+    // Sort back-to-front (smaller oy first)
+    stones.sort((a,b)=>a.oy-b.oy);
+    stones.forEach(s=>{
+      let bx=sx+s.ox,by=sy+s.oy;
+      // Stone base
+      ctx.fillStyle='#5d605c';
+      ctx.fillRect(bx-s.w/2,by-s.h,s.w,s.broken?s.h*.55:s.h);
+      // Lighter face
+      ctx.fillStyle='#7e7f76';
+      ctx.fillRect(bx-s.w/2,by-s.h,s.w*.45,s.broken?s.h*.55:s.h);
+      // Top cap shadow
+      ctx.fillStyle='rgba(0,0,0,.22)';
+      ctx.fillRect(bx-s.w/2,by-1,s.w,1.5);
+      // Highlight
+      ctx.fillStyle='rgba(255,255,255,.08)';
+      ctx.fillRect(bx-s.w/2+1,by-s.h+2,1.5,Math.max(4,(s.broken?s.h*.55:s.h)-4));
+    });
+    // Center stone slab + glowing rune
+    ctx.fillStyle='#403f44';
+    ctx.fillRect(sx-7,sy+4,14,5);
+    ctx.fillStyle='rgba(159,140,255,'+(.32+.28*runePulse)+')';
+    ctx.fillRect(sx-3,sy+5,6,2);
+    drawGlow(sx,sy+5,22,'rgb(159,140,255)',.10*runePulse);
   }else if(site.kind==='watcher'){
     let dir=site.facing==='left'?-1:1;
-    let watcherKey=site.watcherId==='huginn'?'watcher_huginn':'watcher_muninn';
-    let watcherImg=AssetLoader?.getImage?.(watcherKey);
-    if(watcherImg&&watcherImg.complete&&watcherImg.naturalWidth>0){
-      let fl=Math.sin(Date.now()/420+site.x*.35+site.y*.21)*1.5;
-      let hoverY=sy-4+fl;
-      ctx.save();
-      ctx.translate(sx,hoverY);
-      if(dir<0)ctx.scale(-1,1);
-      ctx.drawImage(watcherImg,-22,-26,44,44);
-      ctx.restore();
-      drawGlow(sx+5*dir,sy-2,12,site.watcherId==='huginn'?'rgb(142,202,244)':'rgb(216,108,47)',.1);
-    }else{
-      drawShadow(sx,sy+13,12,3,.22);
-      ctx.fillStyle='#1b1e27';
-      ctx.fillRect(sx-1,sy+2,2,14);
-      ctx.fillStyle='#050607';
-      ctx.beginPath();ctx.ellipse(sx-dir,sy+4,8,5.2,-.08*dir,0,Math.PI*2);ctx.fill();
-      ctx.beginPath();ctx.arc(sx+5*dir,sy+1,3.6,0,Math.PI*2);ctx.fill();
-      ctx.beginPath();ctx.moveTo(sx+7*dir,sy+2);ctx.lineTo(sx+13*dir,sy+4);ctx.lineTo(sx+7*dir,sy+5);ctx.closePath();ctx.fill();
-      ctx.beginPath();ctx.moveTo(sx-5*dir,sy+1);ctx.lineTo(sx-10*dir,sy-8);ctx.lineTo(sx-2*dir,sy-2);ctx.closePath();ctx.fill();
-      ctx.beginPath();ctx.moveTo(sx-4*dir,sy+7);ctx.lineTo(sx-14*dir,sy+12);ctx.lineTo(sx-5*dir,sy+10);ctx.closePath();ctx.fill();
-      ctx.beginPath();ctx.moveTo(sx+2*dir,sy+7);ctx.lineTo(sx+12*dir,sy+11);ctx.lineTo(sx+3*dir,sy+9);ctx.closePath();ctx.fill();
-      ctx.fillStyle=site.watcherId==='huginn'?'#8ecaf4':'#d86c2f';
-      ctx.beginPath();ctx.arc(sx+6*dir,sy+1,1.5,0,Math.PI*2);ctx.fill();
-      drawGlow(sx+5*dir,sy+1,8,site.watcherId==='huginn'?'rgb(142,202,244)':'rgb(216,108,47)',.08);
-    }
+    let isHuginn=site.watcherId==='huginn';
+    let bob=Math.sin(Date.now()/420+site.x*.35+site.y*.21)*1.6;
+    let eyePulse=pulse(220,site.x+site.y,.55,1);
+    let wingFlutter=pulse(820,site.x+site.y*1.3,.6,1);
+    drawCastShadow(sx,sy+20,16,5);
+    drawShadow(sx,sy+19,15,4,.28);
+    // Stone perch / cairn
+    ctx.fillStyle='#3a3540';
+    ctx.fillRect(sx-13,sy+11,26,9);
+    ctx.fillStyle='#54505d';
+    ctx.fillRect(sx-13,sy+9,26,3);
+    ctx.fillStyle='rgba(255,255,255,.07)';
+    ctx.fillRect(sx-13,sy+9,26,1);
+    // Block-segment lines on perch
+    ctx.fillStyle='rgba(0,0,0,.22)';
+    ctx.fillRect(sx-4,sy+9,1,11);
+    ctx.fillRect(sx+5,sy+9,1,11);
+    // Tail feathers (behind body, in transform space)
+    ctx.save();
+    ctx.translate(sx,sy+bob);
+    if(dir<0)ctx.scale(-1,1);
+    let bodyDark=isHuginn?'#0d121d':'#120e09';
+    let bodyMid=isHuginn?'#181f30':'#1f1812';
+    let sheenCol=isHuginn?'rgba(120,160,210,.22)':'rgba(210,140,80,.22)';
+    let featherCol=isHuginn?'rgba(80,120,170,.28)':'rgba(170,110,60,.28)';
+    // Tail
+    ctx.fillStyle=bodyDark;
+    ctx.beginPath();
+    ctx.moveTo(-11,-1);ctx.lineTo(-19,3);ctx.lineTo(-19,7);ctx.lineTo(-11,5);ctx.closePath();ctx.fill();
+    ctx.fillStyle=bodyMid;
+    ctx.fillRect(-15,2,2,3);
+    // Body — oblong
+    ctx.fillStyle=bodyDark;
+    ctx.beginPath();
+    ctx.ellipse(-1,1,12,7.5,0,0,Math.PI*2);
+    ctx.fill();
+    // Body chest highlight (subtle sheen)
+    ctx.fillStyle=sheenCol;
+    ctx.beginPath();
+    ctx.ellipse(-2,-2,7,4,0,0,Math.PI*2);
+    ctx.fill();
+    // Folded wing (subtle flutter offset)
+    let wingY=1+wingFlutter*.6;
+    ctx.fillStyle=bodyMid;
+    ctx.beginPath();
+    ctx.moveTo(-8,-2);
+    ctx.lineTo(3,wingY-1);
+    ctx.lineTo(5,wingY+3);
+    ctx.lineTo(-7,3);
+    ctx.closePath();
+    ctx.fill();
+    // Wing feather lines
+    ctx.strokeStyle=featherCol;
+    ctx.lineWidth=.7;
+    ctx.beginPath();
+    ctx.moveTo(-6,0);ctx.lineTo(0,wingY+.5);
+    ctx.moveTo(-4,1.4);ctx.lineTo(2,wingY+1);
+    ctx.moveTo(-2,2.2);ctx.lineTo(4,wingY+2);
+    ctx.stroke();
+    // Head (smaller circle, slightly forward of body)
+    ctx.fillStyle=bodyDark;
+    ctx.beginPath();
+    ctx.arc(8,-4,5,0,Math.PI*2);
+    ctx.fill();
+    // Head sheen
+    ctx.fillStyle=sheenCol;
+    ctx.beginPath();
+    ctx.arc(7,-5.5,3,0,Math.PI*2);
+    ctx.fill();
+    // Brow ridge (gives the head a sterner shape)
+    ctx.fillStyle='rgba(0,0,0,.5)';
+    ctx.fillRect(7,-7,5,1);
+    // Beak
+    ctx.fillStyle='#1f1c1a';
+    ctx.beginPath();
+    ctx.moveTo(11,-4);ctx.lineTo(17,-3.4);ctx.lineTo(13,-1.6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle='#3a3530';
+    ctx.fillRect(11,-3.5,4,.6);
+    // Non-glowing eye (small dark dot, opposite side from glowing eye)
+    ctx.fillStyle='#000';
+    ctx.beginPath();
+    ctx.arc(7,-4.5,1,0,Math.PI*2);
+    ctx.fill();
+    // Tiny feet down to perch
+    ctx.strokeStyle='#1a1816';
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(-3,7);ctx.lineTo(-3,11);
+    ctx.moveTo(2,7);ctx.lineTo(2,11);
+    ctx.stroke();
+    ctx.restore();
+    // Glowing eye in screen-space — Huginn glows on viewer-RIGHT (its "right" eye), Muninn glows on viewer-LEFT (its "right" eye when mirrored)
+    let glowColor=isHuginn?'rgb(142,202,244)':'rgb(216,108,47)';
+    let pupilFill=isHuginn?'#a8d8f8':'#f8b87a';
+    let eyeX=sx+(isHuginn?9:-9);
+    let eyeY=sy-4+bob;
+    // Outer halo
+    drawGlow(eyeX,eyeY,11,glowColor,.22*eyePulse);
+    // Dark socket
+    ctx.fillStyle='#000';
+    ctx.beginPath();ctx.arc(eyeX,eyeY,2,0,Math.PI*2);ctx.fill();
+    // Glowing pupil
+    ctx.fillStyle=`rgba(${isHuginn?'168,216,248':'248,184,122'},${.88+.12*eyePulse})`;
+    ctx.beginPath();ctx.arc(eyeX,eyeY,1.5,0,Math.PI*2);ctx.fill();
+    // Bright center
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.fillRect(eyeX-.5,eyeY-.5,1,1);
+    // Soft body glow (very faint, only on the eye side)
+    drawGlow(eyeX,eyeY-1,16,glowColor,.10*eyePulse);
   }else if(site.kind==='portal'){
-    drawShadow(sx,sy+18,28,8,.24);
-    ctx.fillStyle='#363244';
-    ctx.fillRect(sx-24,sy+12,48,8);
-    ctx.fillStyle='#4f495f';
-    ctx.fillRect(sx-27,sy+18,54,4);
+    let shimmer=pulse(140,site.x+site.y,.65,1);
+    let bandShift=(Date.now()/600)%1;
+    drawCastShadow(sx,sy+22,36,10);
+    drawShadow(sx,sy+22,36,10,.28);
+    // Stone foundation steps
+    ctx.fillStyle='#2c2738';
+    ctx.fillRect(sx-30,sy+18,60,10);
+    ctx.fillStyle='#3f394f';
+    ctx.fillRect(sx-26,sy+14,52,5);
+    ctx.fillStyle='#564f6a';
+    ctx.fillRect(sx-22,sy+10,44,5);
+    // Foundation stone segmentation
+    ctx.fillStyle='rgba(0,0,0,.22)';
+    for(let i=0;i<5;i++)ctx.fillRect(sx-26+i*11,sy+14,1,4);
+    // Two cracked stone pillars (left + right) - taller, more imposing
     ctx.fillStyle='#5d566f';
-    ctx.fillRect(sx-20,sy-16,9,30);
-    ctx.fillRect(sx+11,sy-16,9,30);
-    ctx.fillStyle='#4a4558';
-    ctx.fillRect(sx-19,sy-12,7,22);
-    ctx.fillRect(sx+12,sy-12,7,22);
-    ctx.fillStyle='#726a83';
-    ctx.beginPath();ctx.moveTo(sx-16,sy-16);ctx.lineTo(sx-4,sy-32);ctx.lineTo(sx+4,sy-32);ctx.lineTo(sx+16,sy-16);ctx.lineTo(sx+8,sy-15);ctx.lineTo(sx,sy-26);ctx.lineTo(sx-8,sy-15);ctx.closePath();ctx.fill();
-    ctx.fillStyle='rgba(185,164,255,.15)';
-    ctx.beginPath();ctx.arc(sx,sy-2,16,Math.PI*.15,Math.PI*.85);ctx.strokeStyle='rgba(185,164,255,.22)';ctx.lineWidth=3;ctx.stroke();
-    ctx.fillStyle='rgba(142,202,244,.14)';
-    ctx.beginPath();ctx.arc(sx-5,sy-3,2.8,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.arc(sx+6,sy+2,2.4,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#8ecaf4';
-    ctx.fillRect(sx-2,sy-10,4,4);
-    ctx.fillStyle='rgba(215,177,92,.3)';
-    ctx.fillRect(sx-10,sy+13,4,4);
-    ctx.fillRect(sx+6,sy+13,4,4);
-    drawGlow(sx,sy-3,24,'rgb(142,202,244)',.08);
+    ctx.fillRect(sx-22,sy-30,11,42);
+    ctx.fillRect(sx+11,sy-30,11,42);
+    // Pillar inner shadow
+    ctx.fillStyle='#46415a';
+    ctx.fillRect(sx-22,sy-26,4,38);
+    ctx.fillRect(sx+18,sy-26,4,38);
+    // Pillar highlights (sun side)
+    ctx.fillStyle='rgba(255,255,255,.08)';
+    ctx.fillRect(sx-18,sy-28,2,40);
+    ctx.fillRect(sx+13,sy-28,2,40);
+    // Stone-block courses on pillars
+    ctx.fillStyle='rgba(0,0,0,.22)';
+    for(let i=0;i<6;i++){let py=sy-28+i*7;ctx.fillRect(sx-22,py,11,1);ctx.fillRect(sx+11,py,11,1);}
+    // Pillar capitals (decorative tops)
+    ctx.fillStyle='#7d75a0';
+    ctx.fillRect(sx-25,sy-34,17,5);
+    ctx.fillRect(sx+8,sy-34,17,5);
+    ctx.fillStyle='rgba(255,255,255,.1)';
+    ctx.fillRect(sx-25,sy-34,17,1.5);
+    ctx.fillRect(sx+8,sy-34,17,1.5);
+    // Broken arch — top piece is jagged/missing (the "broken" Bifrost)
+    ctx.fillStyle='#665e80';
+    ctx.beginPath();
+    ctx.moveTo(sx-25,sy-34);
+    ctx.lineTo(sx-22,sy-46);
+    ctx.lineTo(sx-12,sy-50);
+    ctx.lineTo(sx-4,sy-44);
+    // Jagged break
+    ctx.lineTo(sx-2,sy-38);
+    ctx.lineTo(sx+1,sy-43);
+    ctx.lineTo(sx+4,sy-39);
+    ctx.lineTo(sx+8,sy-44);
+    ctx.lineTo(sx+14,sy-48);
+    ctx.lineTo(sx+22,sy-46);
+    ctx.lineTo(sx+25,sy-34);
+    ctx.lineTo(sx+8,sy-34);
+    ctx.lineTo(sx-8,sy-34);
+    ctx.closePath();
+    ctx.fill();
+    // Floating broken stone fragments (suspended by magic)
+    let frag=Math.sin(Date.now()/700+site.x)*1.5;
+    ctx.fillStyle='#5d566f';
+    ctx.fillRect(sx-2+frag*.4,sy-58,5,4);
+    ctx.fillRect(sx+5,sy-56-frag*.5,3,3);
+    ctx.fillRect(sx-7,sy-54+frag*.3,3,3);
+    // RAINBOW Bifrost shimmer between the pillars (this is the "Bifrost")
+    let bifBands=[
+      {col:'rgba(255,80,80,.42)',o:0},
+      {col:'rgba(255,180,80,.42)',o:.16},
+      {col:'rgba(248,218,130,.42)',o:.32},
+      {col:'rgba(143,191,101,.42)',o:.48},
+      {col:'rgba(122,184,255,.42)',o:.64},
+      {col:'rgba(159,140,255,.42)',o:.80}
+    ];
+    bifBands.forEach((b,i)=>{
+      let bandY=sy+12-(i*8)-bandShift*8;
+      while(bandY>sy-32){
+        ctx.fillStyle=b.col;
+        ctx.fillRect(sx-10,bandY,20,4);
+        bandY-=48;
+      }
+    });
+    // Soft veil over the rainbow (gives the dreamy/broken look)
+    ctx.fillStyle='rgba(20,16,30,.32)';
+    ctx.fillRect(sx-10,sy-32,20,44);
+    // Energy core (unstable)
+    ctx.fillStyle=`rgba(220,210,255,${.55+.3*shimmer})`;
+    ctx.beginPath();ctx.ellipse(sx,sy-8,4*shimmer+1,7*shimmer+2,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.35)';
+    ctx.beginPath();ctx.ellipse(sx,sy-9,2,3,0,0,Math.PI*2);ctx.fill();
+    // Thin lightning crack across pillars
+    ctx.strokeStyle=`rgba(190,160,255,${.45*shimmer})`;
+    ctx.lineWidth=1.4;
+    ctx.beginPath();
+    ctx.moveTo(sx-11,sy-22);ctx.lineTo(sx-3,sy-12);ctx.lineTo(sx+5,sy-18);ctx.lineTo(sx+11,sy-10);
+    ctx.stroke();
+    // Two big atmospheric glows
+    drawGlow(sx,sy-2,32,'rgb(159,140,255)',.16*shimmer);
+    drawGlow(sx,sy-22,28,'rgb(122,184,255)',.13*shimmer);
+    // Brazier offerings at base
+    ctx.fillStyle='#3a342d';
+    ctx.fillRect(sx-22,sy+4,5,5);
+    ctx.fillStyle='rgba(255,180,90,.7)';
+    ctx.fillRect(sx-21,sy+5,3,1);
+    ctx.fillStyle='#3a342d';
+    ctx.fillRect(sx+17,sy+4,5,5);
+    ctx.fillStyle='rgba(255,180,90,.7)';
+    ctx.fillRect(sx+18,sy+5,3,1);
+  }else if(site.kind==='grove'){
+    drawShadow(sx,sy+18,30,8,.22);
+    // Trunk cluster
+    ctx.fillStyle='#3e2a17';
+    ctx.fillRect(sx-3,sy-2,5,18);
+    ctx.fillStyle='#2c1d10';
+    ctx.fillRect(sx-12,sy+2,4,14);
+    ctx.fillRect(sx+9,sy+1,4,15);
+    // Foliage layers
+    let groveSway=Math.sin(Date.now()/1400+site.x*.4)*1.2;
+    ctx.fillStyle='#3a6e2a';
+    ctx.beginPath();ctx.ellipse(sx,sy-12+groveSway*.3,18,12,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(sx-12,sy-4+groveSway*.4,9,7,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(sx+11,sy-6+groveSway*.4,9,7,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#4d8a35';
+    ctx.beginPath();ctx.ellipse(sx-2,sy-16+groveSway*.5,12,7,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(sx+5,sy-9+groveSway*.4,8,5,0,0,Math.PI*2);ctx.fill();
+    // Highlight + sacred glow
+    ctx.fillStyle='rgba(193,243,140,.18)';
+    ctx.beginPath();ctx.ellipse(sx-3,sy-18+groveSway*.5,5,3,0,0,Math.PI*2);ctx.fill();
+    drawGlow(sx,sy-8,22,'rgb(160,214,120)',.08);
+    // Tiny offerings
+    ctx.fillStyle='rgba(215,177,92,.55)';
+    ctx.fillRect(sx-7,sy+15,3,2);
+    ctx.fillRect(sx+5,sy+15,3,2);
+  }else if(site.kind==='bridge'){
+    drawShadow(sx,sy+14,38,7,.22);
+    // Stone bridge deck (broken arch)
+    ctx.fillStyle='#5b5366';
+    ctx.fillRect(sx-22,sy+2,18,8);
+    ctx.fillRect(sx+5,sy+2,17,8);
+    ctx.fillStyle='#6e6478';
+    ctx.fillRect(sx-22,sy,18,3);
+    ctx.fillRect(sx+5,sy,17,3);
+    // Broken middle gap with hanging stones
+    ctx.fillStyle='rgba(0,0,0,.42)';
+    ctx.fillRect(sx-4,sy+1,9,12);
+    ctx.fillStyle='#4a4458';
+    ctx.fillRect(sx-3,sy+10,2,4);
+    ctx.fillRect(sx+2,sy+9,2,5);
+    // Arch supports
+    ctx.fillStyle='#3f3a4d';
+    ctx.fillRect(sx-20,sy+10,4,10);
+    ctx.fillRect(sx+16,sy+10,4,10);
+    // Top stone highlight
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.fillRect(sx-21,sy+1,16,1);
+    ctx.fillRect(sx+6,sy+1,15,1);
+    // Hint of water below
+    ctx.fillStyle='rgba(64,118,176,.35)';
+    ctx.fillRect(sx-18,sy+18,36,3);
+    ctx.fillStyle='rgba(120,182,232,.18)';
+    ctx.fillRect(sx-15,sy+19,8,1);
+    ctx.fillRect(sx+5,sy+19,9,1);
   }
   ctx.textAlign='left';
   ctx.restore();
@@ -6799,7 +7680,9 @@ function worldSiteLabelAnchor(site,sx,sy){
     grave:{dx:0,dy:-34},
     ruin:{dx:0,dy:-34},
     watcher:{dx:-4,dy:-30},
-    portal:{dx:0,dy:-54}
+    portal:{dx:0,dy:-54},
+    grove:{dx:0,dy:-46},
+    bridge:{dx:0,dy:-32}
   }[site.kind]||{dx:0,dy:-36};
   return {x:sx+cfg.dx,y:sy+cfg.dy};
 }
@@ -6807,7 +7690,7 @@ function interactWorldLandmark(site){
   if(!site||(site.used&&!isReusableLandmarkKind(site.kind)))return;
   if(site.kind==='ruin'){
     site.used=true;
-    rewardLandmark(site,{mp:35,maxMp:10,items:[{...POTIONS[3]}]},'áš± Stone Circle answered your call. Mana and a runic vial restored.');
+    rewardLandmark(site,{mp:35,maxMp:10,items:[{...POTIONS[3]}]},'ᚱ Stone Circle answered your call. Mana and a runic vial restored.');
   }else if(site.kind==='grove'){
     site.used=true;
     rewardLandmark(site,{hp:55,items:[rollPotion(1)]},'Sacred Grove soothed your wounds and yielded fresh supplies.');
@@ -7585,6 +8468,7 @@ function movePlayer(dx,dy,sp,dt,isDungeon){
 
 function updateWorldMode(dt){
   if(worldEntryPromptCooldown>0)worldEntryPromptCooldown=Math.max(0,worldEntryPromptCooldown-dt);
+  updateAmbientWorld(dt);
   if(panel)return;
   let dx=0,dy=0;
   if(keys['w']||keys['ArrowUp'])dy=-1;if(keys['s']||keys['ArrowDown'])dy=1;
@@ -7893,7 +8777,7 @@ function updateProjectiles(dt){
 }
 
 function updateParticles(dt){
-  particles=particles.filter(p=>{p.x+=p.vx*(dt/16);p.y+=p.vy*(dt/16);p.vy+=0.06;p.life-=dt/700;return p.life>0;});
+  particles=particles.filter(p=>{p.x+=p.vx*(dt/16);p.y+=p.vy*(dt/16);p.vy+=(p.gravity!=null?p.gravity:.06);if(p.swayAmp){p.x+=Math.sin(Date.now()/p.swayPeriod+(p.swayPhase||0))*p.swayAmp;}p.life-=dt/(p.lifeRate||700);return p.life>0;});
   floaters=floaters.filter(f=>{f.y+=f.vy*(dt/16);f.life-=dt/1600;return f.life>0;});
 }
 
@@ -7959,8 +8843,21 @@ function drawTile(tx,ty,sx,sy){
   ctx.save();
   switch(t){
     case TILE.GRASS:{
-      let grassTop=site?.kind==='village'&&dist<8?'#61724a':site?.kind==='grove'&&dist<7?'#41733a':macro>.55?'#417a28':'#3d7424';
-      let grassBot=site?.kind==='grove'&&dist<8?'#1d4620':site?.kind==='grave'&&dist<7?'#2f3c29':broad>.58?'#315925':'#294f1f';
+      // Tone variation: pick from a small palette via independent noise
+      let toneN=tileNoise(tx*1.7+5,ty*1.3+11);
+      let grassTop;
+      if(site?.kind==='village'&&dist<8)grassTop='#61724a';
+      else if(site?.kind==='grove'&&dist<7)grassTop='#41733a';
+      else if(toneN<.22)grassTop='#3a6e22';
+      else if(toneN<.55)grassTop=macro>.55?'#417a28':'#3d7424';
+      else if(toneN<.82)grassTop='#467f2c';
+      else grassTop='#4d8530';
+      let grassBot;
+      if(site?.kind==='grove'&&dist<8)grassBot='#1d4620';
+      else if(site?.kind==='grave'&&dist<7)grassBot='#2f3c29';
+      else if(toneN<.4)grassBot=broad>.58?'#2d5320':'#264a1c';
+      else if(toneN<.75)grassBot='#315925';
+      else grassBot='#365f29';
       ctx.drawImage(getTileGradientBitmap(grassTop,grassBot,T,T),sx,sy);
       if(macro>.42){
         ctx.fillStyle='rgba(255,255,255,.03)';
@@ -7970,8 +8867,11 @@ function drawTile(tx,ty,sx,sy){
         ctx.fillStyle='rgba(0,0,0,.05)';
         ctx.fillRect(sx,sy+T-3,T,1.5);
       }
-      ctx.beginPath();ctx.ellipse(sx+10,sy+8,5,3,0,0,Math.PI*2);ctx.fill();
-      ctx.beginPath();ctx.ellipse(sx+24,sy+13,4,2.6,0,0,Math.PI*2);ctx.fill();
+      // Wind sway offset for grass detail (gentle, deterministic per tile)
+      let sway=Math.sin(Date.now()/1100+tx*.7+ty*.4)*.7;
+      let sway2=Math.sin(Date.now()/1300+tx*.4+ty*.6)*.55;
+      ctx.beginPath();ctx.ellipse(sx+10+sway,sy+8,5,3,0,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.ellipse(sx+24+sway2,sy+13,4,2.6,0,0,Math.PI*2);ctx.fill();
       ctx.fillStyle='rgba(20,44,17,.18)';
       ctx.beginPath();ctx.ellipse(sx+12,sy+24,8,5,0,0,Math.PI*2);ctx.fill();
       ctx.beginPath();ctx.ellipse(sx+27,sy+25,6,4,0,0,Math.PI*2);ctx.fill();
@@ -7982,20 +8882,54 @@ function drawTile(tx,ty,sx,sy){
       ctx.beginPath();ctx.ellipse(sx+8,sy+28,10,4,0,0,Math.PI*2);ctx.fill();
       ctx.beginPath();ctx.ellipse(sx+24,sy+30,9,4,0,0,Math.PI*2);ctx.fill();
       ctx.fillStyle='rgba(162,205,102,.11)';
-      ctx.fillRect(sx+3,sy+12,12,3);
-      ctx.fillRect(sx+20,sy+16,9,3);
+      ctx.fillRect(sx+3+sway,sy+12,12,3);
+      ctx.fillRect(sx+20+sway2,sy+16,9,3);
       if(n>.46&&t!==TILE.STONE){
-        ctx.strokeStyle='rgba(138,186,96,.24)';
+        ctx.strokeStyle='rgba(138,186,96,.28)';
         ctx.lineWidth=1.2;
         ctx.beginPath();
-        ctx.moveTo(sx+7,sy+T);ctx.lineTo(sx+10,sy+23);
-        ctx.moveTo(sx+18,sy+T);ctx.lineTo(sx+20,sy+21);
-        ctx.moveTo(sx+25,sy+T);ctx.lineTo(sx+27,sy+22);
+        ctx.moveTo(sx+7,sy+T);ctx.lineTo(sx+10+sway,sy+23);
+        ctx.moveTo(sx+18,sy+T);ctx.lineTo(sx+20+sway2,sy+21);
+        ctx.moveTo(sx+25,sy+T);ctx.lineTo(sx+27+sway,sy+22);
         ctx.stroke();
       }
       if(n>.3){
         ctx.fillStyle='rgba(6,18,8,.08)';
         ctx.fillRect(sx,sy+T-4,T,2);
+      }
+      // Wildflower decals (rare, deterministic)
+      let flowerN=tileNoise(tx+47,ty+19);
+      if(flowerN>.91){
+        let fx=sx+6+(tileNoise(tx+3,ty+8)*22|0);
+        let fy=sy+10+(tileNoise(tx+5,ty+11)*18|0);
+        let kind=Math.floor(toneN*4);
+        ctx.fillStyle=kind===0?'#e88aa6':kind===1?'#f0d05c':kind===2?'#9bb3ff':'#e3e3f0';
+        ctx.fillRect(fx,fy,2,2);
+        ctx.fillStyle='rgba(0,0,0,.25)';
+        ctx.fillRect(fx,fy+2,2,1);
+      }
+      // Dead-grass dry patches (rare)
+      let dryN=tileNoise(tx+91,ty+13);
+      if(dryN>.88){
+        ctx.fillStyle='rgba(140,116,68,.22)';
+        ctx.beginPath();ctx.ellipse(sx+10+(dryN*16|0),sy+18+(dryN*10|0),6,3.4,0,0,Math.PI*2);ctx.fill();
+      }
+      // Edge softening: tufts + moss creep where grass meets stone
+      if(north===TILE.STONE){
+        ctx.fillStyle='rgba(58,108,42,.32)';
+        ctx.fillRect(sx+5,sy,3,2);ctx.fillRect(sx+18,sy,4,2);ctx.fillRect(sx+28,sy,3,2);
+      }
+      if(south===TILE.STONE){
+        ctx.fillStyle='rgba(58,108,42,.28)';
+        ctx.fillRect(sx+8,sy+T-2,4,2);ctx.fillRect(sx+22,sy+T-2,3,2);
+      }
+      if(west===TILE.STONE){
+        ctx.fillStyle='rgba(58,108,42,.28)';
+        ctx.fillRect(sx,sy+8,2,4);ctx.fillRect(sx,sy+22,2,3);
+      }
+      if(east===TILE.STONE){
+        ctx.fillStyle='rgba(58,108,42,.28)';
+        ctx.fillRect(sx+T-2,sy+12,2,4);ctx.fillRect(sx+T-2,sy+26,2,3);
       }
       if(site?.kind==='village'&&dist<8&&n>.58){ctx.fillStyle='rgba(120,105,70,.08)';ctx.fillRect(sx,sy,T,T);}
       if(site?.kind==='watcher'&&dist<7&&n>.62){ctx.fillStyle='rgba(12,14,18,.18)';ctx.fillRect(sx+10,sy+10,4,10);}
@@ -8158,7 +9092,17 @@ function drawTile(tx,ty,sx,sy){
       ctx.fillStyle='#747089';ctx.fillRect(sx+9,sy+7,22,26);
       ctx.fillStyle='rgba(255,255,255,.08)';ctx.fillRect(sx+11,sy+9,18,2);
       drawGlow(sx+20,sy+18,18,'rgb(159,140,255)',.11);
-      ctx.fillStyle='#c1b7ff';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('áš±',sx+20,sy+26);ctx.textAlign='left';
+      // Hand-drawn gebo rune (X-shape, "gift") - distinctly runic, no font fallback, no R-confusion
+      ctx.strokeStyle='#c1b7ff';
+      ctx.lineWidth=2.4;
+      ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(sx+13,sy+12);ctx.lineTo(sx+27,sy+27);
+      ctx.moveTo(sx+27,sy+12);ctx.lineTo(sx+13,sy+27);
+      ctx.stroke();
+      // small inner glow notch at center
+      ctx.fillStyle='rgba(193,183,255,.55)';
+      ctx.fillRect(sx+19,sy+18,2,2);
       break;
     case TILE.DUNGEON_ENTRY:{
       ctx.fillStyle='#161324';ctx.fillRect(sx,sy,T,T);
@@ -8943,7 +9887,7 @@ function drawWorld(){
 }
 
 function drawWorldEntities(){
-  const spriteKinds=new Set(['village','tower','dungeon','grave','ruin','hall','council','sanctum','meadhall','memorial','watcher','portal']);
+  const spriteKinds=new Set(['village','tower','dungeon','grave','ruin','hall','council','sanctum','meadhall','memorial','watcher','portal','grove','bridge']);
   worldLandmarks.forEach(site=>{
     let sx=site.x*T+T/2-cam.x,sy=site.y*T+T/2-cam.y;
     if(sx<-80||sx>W+80||sy<-80||sy>H+80)return;
@@ -8983,7 +9927,7 @@ function drawWorldEntities(){
   worldLandmarks.forEach(site=>{
     let sx=site.x*T+T/2-cam.x,sy=site.y*T+T/2-cam.y;
     if(sx<-120||sx>W+120||sy<-120||sy>H+120)return;
-    if(['village','tower','dungeon','grave','ruin','hall','council','sanctum','meadhall','memorial','watcher','portal'].includes(site.kind))drawWorldSiteSprite(site,sx,sy);
+    if(['village','tower','dungeon','grave','ruin','hall','council','sanctum','meadhall','memorial','watcher','portal','grove','bridge'].includes(site.kind))drawWorldSiteSprite(site,sx,sy);
   });
   loot.filter(l=>!l.isDungeon).forEach(l=>{
     drawLootSprite(l,l.x-cam.x,l.y-cam.y);
@@ -9078,6 +10022,16 @@ function drawParticles(){
       ctx.fillRect(-p.sz*.45,-p.sz*.45,p.sz*.9,p.sz*.9);
       ctx.strokeStyle='rgba(255,255,255,.35)';
       ctx.strokeRect(-p.sz*.45,-p.sz*.45,p.sz*.9,p.sz*.9);
+    }else if(p.style==='leaf'){
+      ctx.translate(sx,sy);
+      ctx.rotate((p.rot||0)+Math.sin(Date.now()/420+p.swayPhase)*.8);
+      ctx.fillStyle=p.col;
+      ctx.beginPath();
+      ctx.ellipse(0,0,p.sz*1.6,p.sz*.7,0,0,Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.18)';
+      ctx.lineWidth=.5;
+      ctx.beginPath();ctx.moveTo(-p.sz*1.3,0);ctx.lineTo(p.sz*1.3,0);ctx.stroke();
     }else if(p.style==='mist'){
       ctx.fillStyle=p.col;
       ctx.beginPath();
@@ -9121,6 +10075,63 @@ function drawPauseOverlay(){
   ctx.fillStyle='#aaa';ctx.font='16px monospace';ctx.fillText('Press P to resume',W/2,H/2+28);ctx.textAlign='left';ctx.restore();
 }
 let hudNodes=null;
+function makeHudChip(parent,modClass,labelText){
+  let chip=document.createElement('div');
+  chip.className='hud-chip '+modClass;
+  if(labelText){
+    let lbl=document.createElement('span');
+    lbl.className='hud-chip__lbl';
+    lbl.textContent=labelText;
+    chip.appendChild(lbl);
+  }
+  let val=document.createElement('span');
+  val.className='hud-chip__val';
+  chip.appendChild(val);
+  parent.appendChild(chip);
+  return {chip,val};
+}
+function makeKeyPill(parent,key,label){
+  let pill=document.createElement('div');
+  pill.className='key-pill';
+  let k=document.createElement('span');
+  k.className='key-pill__k';
+  k.textContent=key;
+  pill.appendChild(k);
+  let l=document.createElement('span');
+  l.textContent=label;
+  pill.appendChild(l);
+  parent.appendChild(pill);
+  return {pill,label:l};
+}
+function initStatusBarChips(){
+  let bar=document.getElementById('status-bar');
+  if(!bar)return null;
+  bar.innerHTML='';
+  return {
+    gold:makeHudChip(bar,'hud-chip--gold','Gold'),
+    dust:makeHudChip(bar,'hud-chip--dust','Dust'),
+    cls:makeHudChip(bar,'hud-chip--class',null),
+    ap:makeHudChip(bar,'hud-chip--ap','AP'),
+    sp:makeHudChip(bar,'hud-chip--sp','SP'),
+    echo:makeHudChip(bar,'hud-chip--echo','Echo'),
+    skald:makeHudChip(bar,'hud-chip--skald','Skald'),
+  };
+}
+function initKeyHintPills(){
+  let bar=document.getElementById('key-hints');
+  if(!bar)return null;
+  bar.innerHTML='';
+  return {
+    bag:makeKeyPill(bar,'I','Bag'),
+    skills:makeKeyPill(bar,'K','Skills'),
+    settings:makeKeyPill(bar,'O','Settings'),
+    interact:makeKeyPill(bar,'F','Interact'),
+    potion:makeKeyPill(bar,'Q','Potion(0)'),
+    sprint:makeKeyPill(bar,'Shift','Sprint'),
+    pause:makeKeyPill(bar,'P','Pause'),
+    mute:makeKeyPill(bar,'M','Mute'),
+  };
+}
 function updateHUD(){
   if(!hudNodes){
     hudNodes={
@@ -9128,9 +10139,10 @@ function updateHUD(){
       mpf:document.getElementById('mpf'),
       xpf:document.getElementById('xpf'),
       stf:document.getElementById('stf'),
-      gold:document.getElementById('gold'),
       potionCount:document.getElementById('potion-count'),
-      cd:[0,1,2,3].map(i=>document.getElementById('cd'+i))
+      cd:[0,1,2,3].map(i=>document.getElementById('cd'+i)),
+      chips:initStatusBarChips(),
+      hints:initKeyHintPills(),
     };
   }
   hudNodes.hpf.style.width=(P.hp/P.maxHp*100)+'%';
@@ -9138,10 +10150,24 @@ function updateHUD(){
   hudNodes.xpf.style.width=(P.xp/P.xpNext*100)+'%';
   hudNodes.stf.style.width=(P.stamina/P.maxStamina*100)+'%';
   hudNodes.stf.style.background=P.stamina<20?'linear-gradient(90deg,#550000,#cc2200)':P.sprinting?'linear-gradient(90deg,#007700,#44ff44)':'linear-gradient(90deg,#005500,#22cc44)';
-  let echoText=P._echoBlessing?' | Echo: '+echoBlessingLabel():'';
-  let skaldText=P._skaldBuff?' | Skald: '+skaldBuffLabel():'';
-  hudNodes.gold.textContent='Gold '+P.gold+'g | Dust '+relicDust()+(P.className?' | '+P.className:'')+(P.subclassId?(' / '+(CLASS_DEFS.find(c=>c.id===P.subclassId)?.name||'Subclass')):'')+((P.attrPoints||0)>0?(' | AP '+P.attrPoints):'')+((P.skillPoints||0)>0?(' | SP '+P.skillPoints):'')+echoText+skaldText+' | [I] Bag [K] Skills [F] Interact [Q] Potion('+countPotions()+') [Shift] Sprint [P] Pause [M] Audio';
-  hudNodes.potionCount.textContent=countPotions();
+  let pots=countPotions();
+  hudNodes.potionCount.textContent=pots;
+  if(hudNodes.chips){
+    let c=hudNodes.chips;
+    let goldVal=P.gold+'g';if(c.gold.val.textContent!==goldVal)c.gold.val.textContent=goldVal;
+    let dustVal=String(relicDust());if(c.dust.val.textContent!==dustVal)c.dust.val.textContent=dustVal;
+    let clsName=P.className||'';
+    if(P.subclassId){let sub=CLASS_DEFS.find(d=>d.id===P.subclassId);if(sub)clsName+=' / '+sub.name;}
+    if(clsName){if(c.cls.val.textContent!==clsName)c.cls.val.textContent=clsName;c.cls.chip.style.display='';}else c.cls.chip.style.display='none';
+    let apN=P.attrPoints||0;if(apN>0){if(c.ap.val.textContent!==String(apN))c.ap.val.textContent=apN;c.ap.chip.style.display='';}else c.ap.chip.style.display='none';
+    let spN=P.skillPoints||0;if(spN>0){if(c.sp.val.textContent!==String(spN))c.sp.val.textContent=spN;c.sp.chip.style.display='';}else c.sp.chip.style.display='none';
+    if(P._echoBlessing){let l=echoBlessingLabel();if(c.echo.val.textContent!==l)c.echo.val.textContent=l;c.echo.chip.style.display='';}else c.echo.chip.style.display='none';
+    if(P._skaldBuff){let l=skaldBuffLabel();if(c.skald.val.textContent!==l)c.skald.val.textContent=l;c.skald.chip.style.display='';}else c.skald.chip.style.display='none';
+  }
+  if(hudNodes.hints){
+    let potText='Potion('+pots+')';
+    if(hudNodes.hints.potion.label.textContent!==potText)hudNodes.hints.potion.label.textContent=potText;
+  }
   for(let i=0;i<skillCD.length;i++){let cd=skillCD[i],el=hudNodes.cd[i];if(!el)continue;if(cd>0){el.style.display='flex';el.textContent=Math.ceil(cd/1000)+'s';}else el.style.display='none';}
 }
 
@@ -9152,6 +10178,7 @@ window.addEventListener('keydown',e=>{
   if(e.key==='m'||e.key==='M'){toggleAudioMute();}
   if(e.key==='i'||e.key==='I'){panel==='inv'?closePanel():openInv();e.preventDefault();}
   if(e.key==='k'||e.key==='K'){panel==='skills'?closePanel():openSkillTree();e.preventDefault();}
+  if(e.key==='o'||e.key==='O'){panel==='settings'?closePanel():openSettings();e.preventDefault();}
   if(e.key==='F10'){panel==='debug'?closePanel():openDebugMenu();e.preventDefault();}
   if(e.key==='f'||e.key==='F'){if(panel&&panel!=='npc')closePanel();else tryTalkNPC();}
   if(e.key==='q'||e.key==='Q')usePotion();
@@ -9175,6 +10202,8 @@ function loop(ts){
   else{
     ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,W,H);
     drawWorld();drawWorldEntities();drawParticles();drawFloaters();
+    let dnTint=getDayNightTint();
+    if(dnTint.a>.005){ctx.fillStyle=`rgba(${dnTint.r},${dnTint.g},${dnTint.b},${dnTint.a})`;ctx.fillRect(0,0,W,H);}
 let vg=ctx.createRadialGradient(W/2,H/2,H*.28,W/2,H/2,H*.75);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.42)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
     drawWorldMinimap();
     let tx=Math.floor(P.x/T),ty=Math.floor(P.y/T),bi=biome[ty]?.[tx]??0;
