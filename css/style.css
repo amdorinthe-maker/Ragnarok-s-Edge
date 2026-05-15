@@ -198,7 +198,7 @@ canvas{display:block;cursor:crosshair}
   #skills-head{flex-direction:column}
   #skill-tree{grid-template-columns:1fr}
 }
-#class-panel{width:min(1020px,92vw);max-width:92vw;max-height:min(94vh,920px);overflow:hidden;border-color:rgba(215,177,92,.68);padding:14px 16px;background:
+#class-panel{width:min(1020px,92vw);max-width:92vw;max-height:min(94vh,920px);overflow:auto;border-color:rgba(215,177,92,.68);padding:14px 16px;background:
 linear-gradient(180deg,rgba(16,18,28,.97),rgba(8,10,16,.98));
 box-shadow:0 24px 60px rgba(0,0,0,.48),inset 0 0 0 1px rgba(255,255,255,.03)}
 #class-panel h2{color:#f3deb0;font-size:28px;letter-spacing:.7px;margin-bottom:5px;text-align:center;text-shadow:0 0 18px rgba(215,177,92,.16)}
@@ -219,6 +219,8 @@ box-shadow:0 14px 26px rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.02);tra
 .class-pillar b{display:block;color:#fff3c8;font-size:15px}
 .class-pillar span{display:block;color:#9098b1;font-size:9px;letter-spacing:.8px;text-transform:uppercase}
 .class-desc{color:#b7bed1;font-size:12px;line-height:1.45;margin-bottom:8px;min-height:34px}
+.class-art-wrap{margin:0 0 10px;border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015));box-shadow:inset 0 0 0 1px rgba(255,255,255,.02)}
+.class-art{display:block;width:100%;height:220px;object-fit:cover;object-position:center top;filter:saturate(1.02) contrast(1.03)}
 .class-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .class-box{border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:7px 9px;background:rgba(255,255,255,.03)}
 .class-box h4{color:#d7b15c;font-size:10px;letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px}

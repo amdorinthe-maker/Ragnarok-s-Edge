@@ -193,6 +193,15 @@ const AssetLoader = {
             const bodyKey = `${cls}_body`;
             const bodySrc = `${this.paths.characters}${cls}/idle_01.png`;
             assets.push({ type: 'image', key: bodyKey, src: bodySrc });
+
+            // Optional body-only class model poses for cleaner gear layering.
+            ['idle','move','attack'].forEach(pose=>{
+                assets.push({
+                    type:'image',
+                    key:`${cls}_model_${pose}`,
+                    src:`${this.paths.characters}models/${cls}_${pose}.png`
+                });
+            });
             
             // Load shadow SVG
             const shadowKey = `${cls}_shadow`;
@@ -255,43 +264,43 @@ const AssetLoader = {
 
     loadWeaponSprites() {
         const weapons = [
-            { key: 'axe', src: 'axe.svg' },
-            { key: 'blade', src: 'blade.svg' },
-            { key: 'bow', src: 'bow_master.png' },
-            { key: 'arcane', src: 'arcane.svg' },
-            { key: 'dagger', src: 'dagger.svg' },
-            { key: 'hammer', src: 'hammer.svg' },
-            { key: 'pike', src: 'pike.svg' },
-            { key: 'berserker_axe', src: 'berserker_axe.svg' },
-            { key: 'draugr_sword', src: 'draugr_sword.svg' },
-            { key: 'frost_blade', src: 'frost_blade.svg' },
-            { key: 'hunter_longbow', src: 'bow_master.png' },
-            { key: 'bifrost_bow', src: 'bow_master.png' },
-            { key: 'skadi_longbow', src: 'bow_master.png' },
-            { key: 'ravenstorm_bow', src: 'bow_master.png' },
-            { key: 'mjolnir_echo', src: 'mjolnir_echo.svg' },
-            { key: 'worldbreaker_hammer', src: 'worldbreaker_hammer.svg' },
-            { key: 'stormbinder_hammer', src: 'stormbinder_hammer.svg' },
-            { key: 'runepiercer', src: 'runepiercer.svg' },
-            { key: 'gungnir_pike', src: 'gungnir_pike.svg' },
-            { key: 'worldroot_pike', src: 'worldroot_pike.svg' },
-            { key: 'gravewake_pike', src: 'gravewake_pike.svg' },
-            { key: 'storm_staff', src: 'storm_staff.svg' },
-            { key: 'mimir_staff', src: 'mimir_staff.svg' },
-            { key: 'voidseidr_tome', src: 'voidseidr_tome.svg' },
-            { key: 'starfire_staff', src: 'starfire_staff.svg' },
-            { key: 'surtr_brand', src: 'surtr_brand.svg' },
-            { key: 'tyrfing_blade', src: 'tyrfing_blade.svg' },
-            { key: 'skullsplitter_axe', src: 'skullsplitter_axe.svg' },
-            { key: 'hrimnir_axe', src: 'hrimnir_axe.svg' },
-            { key: 'oathcleaver_axe', src: 'oathcleaver_axe.svg' },
-            { key: 'helfang_dagger', src: 'helfang_dagger.svg' },
-            { key: 'nightveil_dagger', src: 'nightveil_dagger.svg' },
-            { key: 'raven_talon_dagger', src: 'raven_talon_dagger.svg' },
-            { key: 'axe_basic', src: 'axe_basic.svg' },
-            { key: 'bow_basic', src: 'bow_basic.svg' },
-            { key: 'staff_basic', src: 'staff_basic.svg' },
-            { key: 'sword_basic', src: 'sword_basic.svg' }
+            { key: 'axe', src: 'Axe.svg' },
+            { key: 'blade', src: 'Sword.svg' },
+            { key: 'bow', src: 'bow.svg' },
+            { key: 'arcane', src: 'Staff.svg' },
+            { key: 'dagger', src: 'Dagger.svg' },
+            { key: 'hammer', src: 'Hammer.svg' },
+            { key: 'pike', src: 'Spear.svg' },
+            { key: 'berserker_axe', src: 'Axe.svg' },
+            { key: 'draugr_sword', src: 'Sword.svg' },
+            { key: 'frost_blade', src: 'Sword.svg' },
+            { key: 'hunter_longbow', src: 'bow.svg' },
+            { key: 'bifrost_bow', src: 'bow.svg' },
+            { key: 'skadi_longbow', src: 'bow.svg' },
+            { key: 'ravenstorm_bow', src: 'bow.svg' },
+            { key: 'mjolnir_echo', src: 'Hammer.svg' },
+            { key: 'worldbreaker_hammer', src: 'Hammer.svg' },
+            { key: 'stormbinder_hammer', src: 'Hammer.svg' },
+            { key: 'runepiercer', src: 'Spear.svg' },
+            { key: 'gungnir_pike', src: 'Spear.svg' },
+            { key: 'worldroot_pike', src: 'Spear.svg' },
+            { key: 'gravewake_pike', src: 'Spear.svg' },
+            { key: 'storm_staff', src: 'Staff.svg' },
+            { key: 'mimir_staff', src: 'Staff.svg' },
+            { key: 'voidseidr_tome', src: 'Tome.svg' },
+            { key: 'starfire_staff', src: 'Staff.svg' },
+            { key: 'surtr_brand', src: 'Sword.svg' },
+            { key: 'tyrfing_blade', src: 'Sword.svg' },
+            { key: 'skullsplitter_axe', src: 'Axe.svg' },
+            { key: 'hrimnir_axe', src: 'Axe.svg' },
+            { key: 'oathcleaver_axe', src: 'Axe.svg' },
+            { key: 'helfang_dagger', src: 'Dagger.svg' },
+            { key: 'nightveil_dagger', src: 'Dagger.svg' },
+            { key: 'raven_talon_dagger', src: 'Dagger.svg' },
+            { key: 'axe_basic', src: 'Axe.svg' },
+            { key: 'bow_basic', src: 'bow.svg' },
+            { key: 'staff_basic', src: 'Staff.svg' },
+            { key: 'sword_basic', src: 'Sword.svg' }
         ];
         const assets = [];
 
@@ -612,12 +621,17 @@ const AssetLoader = {
                         `assets/characters/npc_${npc}_wave_{frame}.png`,
                         `assets/characters/npc_${npc}_cast_{frame}.png`,
                         `assets/characters/npc_${npc}_attack_{frame}.png`,
-                        `assets/characters/npcs/npc_${npc}_${state}_{frame}.svg`
+                        `assets/characters/npcs/npc_${npc}_${state}_{frame}.svg`,
+                        `assets/characters/npc_${npc}_${state}_{frame}.png`
+                    ];
+                } else if (state === 'walk') {
+                    patterns = [
+                        `assets/characters/npc_${npc}_${state}_{frame}.png`
                     ];
                 } else {
                     patterns = [
                         `assets/characters/npc_${npc}_${state}_{frame}.png`,
-                        `assets/characters/npcs/npc_${npc}_${state}_{frame}.svg`
+                        `assets/characters/npcs/npc_${npc}_${state}_{frame}.svg`,
                     ];
                 }
                 await this.loadAnimationSequenceCandidates(`npc_${npc}_${state}`, patterns, 1, 4);

@@ -11,9 +11,22 @@ const TILE={GRASS:0,STONE:1,WATER:2,SNOW:3,LAVA:4,WALL:5,TREE:6,RUNE:7,DUNGEON_E
 const DT={FLOOR:0,WALL:1,DOOR:2,CHEST:3,TRAP:4,TORCH:5,BOSS_DOOR:6,STAIRS:7,SPIKE:8,VENDOR:9,FORGE:10,
           SECRET_WALL:11,SHRINE:12,PUZZLE:13,POISON_VENT:14,ARROW_TRAP:15,RUNE_TILE:16,ELITE_MARKER:17,ARMORY:18,CRYPT:19,EVENT:20};
 const MAX_FLOORS=25;
-const BOSS_INTERVAL=10;
+const BOSS_INTERVAL=25;
 const CHAR_H=88;
 const CHAR_OVERLAY_SCALE=CHAR_H/72;
+const PLAYER_MODEL_RENDER_POLICY={
+  berserker:{bodyOnly:true,allowHeldWeapon:true},
+  ranger:{bodyOnly:true,allowHeldWeapon:true},
+  runecaster:{bodyOnly:true,allowHeldWeapon:true},
+  guardian:{bodyOnly:true,allowHeldWeapon:true}
+};
+const USE_CLASS_MODEL_POSES_IN_WORLD = false;
+const CLASS_MODEL_BODY_SCALE={
+  ranger:1.14,
+  berserker:1.0,
+  runecaster:1.0,
+  guardian:1.0
+};
 
 // â”€â”€ ITEMS & POTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const POTIONS=[
@@ -1638,9 +1651,19 @@ let stash=[],stashMode=false,shrineDrafts={},saveLoaded=false;
 const SAVE_KEY='ragnarok_edge_save_v1';
 function ensureMidgardProgress(){
   if(!P.meta)P.meta={};
-  if(!P.meta.midgard)P.meta.midgard={satchel:0,forge:0,provisions:0};
-  return P.meta.midgard;
+  if(!P.meta.midgard)P.meta.midgard={};
+  let m=P.meta.midgard;
+  // Legacy key migration
+  if(m.satchel!=null&&m.trail_satchel==null){m.trail_satchel=m.satchel;delete m.satchel;}
+  if(m.forge!=null&&m.forge_charter==null){m.forge_charter=m.forge;delete m.forge;}
+  if(m.provisions!=null&&m.quartermaster==null){m.quartermaster=m.provisions;delete m.provisions;}
+  ['trail_satchel','vault_charter','quartermaster','loot_wardens','salvage_engine',
+   'iron_charter','warward_pact','battle_drills','quickstep_wards','eyrie_sight',
+   'forge_charter','merchant_accord','echo_bell','healers_vow','omen_seal']
+   .forEach(k=>{if(m[k]==null)m[k]=0;});
+  return m;
 }
+function midgardRank(id){return ensureMidgardProgress()[id]||0;}
 function ensureRunHistory(){
   if(!P.meta)P.meta={};
   if(!P.meta.history)P.meta.history={deepestFloor:1,bossesSlain:0,descents:0,returns:0};
@@ -1845,12 +1868,46 @@ function setDungeonCheckpointFloor(floor,routeId=activeDungeonRouteId||lastDunge
   routes[routeId]=Math.max(1,Math.floor(floor||1));
 }
 function inventoryCap(){
-  let prog=ensureMidgardProgress();
-  return 50+prog.satchel*10;
+  return 50+midgardRank('trail_satchel')*10;
+}
+function stashCap(){
+  return 60+midgardRank('vault_charter')*12;
 }
 function forgeDiscountMult(){
-  let prog=ensureMidgardProgress();
-  return 1-Math.min(.3,prog.forge*.15);
+  return 1-Math.min(.5,midgardRank('forge_charter')*.07);
+}
+function shopPriceMult(){
+  return 1-Math.min(.5,midgardRank('merchant_accord')*.05);
+}
+function templeTitheMult(){
+  return 1-Math.min(.5,midgardRank('echo_bell')*.03);
+}
+function midgardGoldMult(){
+  return 1+midgardRank('loot_wardens')*.06;
+}
+function midgardSalvageMult(){
+  return 1+midgardRank('salvage_engine')*.2;
+}
+function midgardXpMult(){
+  return 1+midgardRank('omen_seal')*.06;
+}
+function midgardHpBonus(){
+  return midgardRank('iron_charter')*12;
+}
+function midgardDrBonus(){
+  return midgardRank('warward_pact')*.01;
+}
+function midgardAtkBonus(){
+  return midgardRank('battle_drills');
+}
+function midgardSpdBonus(){
+  return midgardRank('quickstep_wards')*.06;
+}
+function midgardCritBonus(){
+  return midgardRank('eyrie_sight')*.015;
+}
+function midgardDescentHeal(){
+  return midgardRank('healers_vow')*10;
 }
 function forgeUpgradeCost(item){
   let powerTax=1+Math.min(3.5,getItemPower(item)/220);
@@ -1870,11 +1927,31 @@ function scaledGoldValue(base,floor=dungeonFloor){
   let mult=depth>=100?0.22:depth>=60?0.28:depth>=30?0.34:depth>=15?0.42:0.55;
   return Math.max(1,Math.floor(base*mult*(dungeonHasMod('Blessed',floor)?2:1)*(dungeonHasMod('Fortune-Touched',floor)?1.15:1)));
 }
+const MIDGARD_TIER_COSTS=[250,600,1500,3500,8000];
 const MIDGARD_UPGRADES=[
-  {id:'satchel',name:'Trail Satchel',max:2,cost:[320,720],desc:['Increase bag space by 10.','Increase bag space by another 10.'],summary:'More inventory room for longer descents.'},
-  {id:'forge',name:'Forge Charter',max:2,cost:[420,980],desc:['Reduce forge costs by 15%.','Reduce forge costs by another 15%.'],summary:'Permanent forge discounts in Ravenwatch.'},
-  {id:'provisions',name:'Quartermaster Seal',max:2,cost:[220,520],desc:['Start each descent with a healing potion.','Start each descent with a healing potion and mana tonic.'],summary:'Steady starting supplies for each new floor run.'}
+  // Logistics
+  {id:'trail_satchel',cat:'Logistics',name:'Trail Satchel',summary:'+10 bag space per rank.',perRank:'+10 bag slots'},
+  {id:'vault_charter',cat:'Logistics',name:'Vault Charter',summary:'+12 stash slots per rank.',perRank:'+12 stash slots'},
+  {id:'quartermaster',cat:'Logistics',name:'Quartermaster Seal',summary:'Tiered starting supplies for each descent.',perRank:'+1 starting consumable'},
+  {id:'loot_wardens',cat:'Logistics',name:'Loot Wardens',summary:'+6% gold from kills and pickups per rank.',perRank:'+6% gold gain'},
+  {id:'salvage_engine',cat:'Logistics',name:'Salvage Engine',summary:'+20% relic dust from salvage per rank.',perRank:'+20% salvage yield'},
+  // Combat
+  {id:'iron_charter',cat:'Combat',name:'Iron Charter',summary:'+12 max HP per rank.',perRank:'+12 max HP'},
+  {id:'warward_pact',cat:'Combat',name:'Warward Pact',summary:'+1% damage reduction per rank.',perRank:'+1% damage reduction'},
+  {id:'battle_drills',cat:'Combat',name:'Battle Drills',summary:'+1 base attack per rank.',perRank:'+1 base ATK'},
+  {id:'quickstep_wards',cat:'Combat',name:'Quickstep Wards',summary:'+0.06 move speed per rank.',perRank:'+0.06 SPD'},
+  {id:'eyrie_sight',cat:'Combat',name:"Eyrie's Sight",summary:'+1.5% crit chance per rank.',perRank:'+1.5% crit chance'},
+  // Workshop & Economy
+  {id:'forge_charter',cat:'Workshop',name:'Forge Charter',summary:'-7% forge costs per rank (cap -35%).',perRank:'-7% forge cost'},
+  {id:'merchant_accord',cat:'Workshop',name:"Merchant's Accord",summary:'-5% shop prices per rank (cap -25%).',perRank:'-5% shop prices'},
+  {id:'echo_bell',cat:'Workshop',name:'Echo Bell',summary:'-3% sanctum tithe per rank (cap -15%).',perRank:'-3% tithe cost'},
+  {id:'healers_vow',cat:'Workshop',name:"Healer's Vow",summary:'Heal +10 HP on descent start per rank.',perRank:'+10 HP on descent'},
+  {id:'omen_seal',cat:'Workshop',name:'Omen Seal',summary:'+6% XP gained per rank.',perRank:'+6% XP gain'}
 ];
+const MIDGARD_UPGRADE_MAX=MIDGARD_TIER_COSTS.length;
+function midgardUpgradeCost(rank){
+  return MIDGARD_TIER_COSTS[rank]||0;
+}
 function clearSkaldBuff(){
   P._skaldBuff=null;
 }
@@ -1882,39 +1959,54 @@ function skaldBuffLabel(){
   return P._skaldBuff?.label||'None';
 }
 function grantMidgardProvisions(){
-  let prog=ensureMidgardProgress();
+  let rank=midgardRank('quartermaster');
   let granted=[];
-  if(prog.provisions>=1&&addItemToInventory({...POTIONS[0]}))granted.push(POTIONS[0].name);
-  if(prog.provisions>=2&&addItemToInventory({...POTIONS[3]}))granted.push(POTIONS[3].name);
-  if(granted.length)msg(`Ravenwatch sends you off with ${granted.join(' and ')}.`,2200);
+  // Tier 1: Minor Heal | T2: +Mana Vial | T3: +Healing Potion | T4: +Mana Potion | T5: +Greater Heal
+  let pool=[POTIONS[0],POTIONS[3],POTIONS[1],POTIONS[4],POTIONS[2]];
+  for(let i=0;i<rank&&i<pool.length;i++){
+    if(addItemToInventory({...pool[i]}))granted.push(pool[i].name);
+  }
+  let healHp=midgardDescentHeal();
+  if(healHp>0&&P.maxHp){let amt=Math.min(P.maxHp-P.hp,healHp);if(amt>0){P.hp+=amt;granted.push(`+${amt} HP`);}}
+  if(granted.length)msg(`Ravenwatch sends you off with ${granted.join(', ')}.`,2400);
 }
 function openMidgardCouncil(){
   let prog=ensureMidgardProgress();
   document.getElementById('npc-portrait').textContent='⌂';
   document.getElementById('npc-name').textContent='Jarl\'s Lodge';
   document.getElementById('npc-sub').textContent='Ravenwatch | Town Progression';
-  document.getElementById('npc-text').innerHTML='<b>Invest in Ravenwatch</b><br><small>Permanent improvements that strengthen every descent.</small>';
+  let totalRanks=MIDGARD_UPGRADES.reduce((n,u)=>n+(prog[u.id]||0),0);
+  let totalMax=MIDGARD_UPGRADES.length*MIDGARD_UPGRADE_MAX;
+  document.getElementById('npc-text').innerHTML=`<b>Invest in Ravenwatch</b><br><small>Permanent improvements that strengthen every descent.<br><span style="color:#d7b15c">Charters: ${totalRanks}/${totalMax}</span></small>`;
   let opts=document.getElementById('npc-opts');
   opts.innerHTML='';
-  MIDGARD_UPGRADES.forEach(upg=>{
-    let rank=prog[upg.id]||0;
-    let maxed=rank>=upg.max;
-    let cost=maxed?0:upg.cost[rank];
-    let b=document.createElement('button');
-    b.className='npc-btn';
-    b.disabled=maxed||P.gold<cost;
-    b.innerHTML=`<span><b>${upg.name}</b> <span style="color:#d7b15c">Rank ${rank}/${upg.max}</span><br><small style="color:#8d8574">${upg.summary}<br>${maxed?'Maxed':upg.desc[rank]}</small></span><span style="color:${maxed?'#666':'#ffd700'};float:right;margin-left:8px">${maxed?'MAX':cost+'g'}</span>`;
-    b.onclick=()=>{
-      if(maxed||P.gold<cost)return;
-      P.gold-=cost;
-      prog[upg.id]=rank+1;
-      ensureMidgardProgress();
-      renderInv();
-      saveGame(false);
-      msg(`${upg.name} improved to Rank ${prog[upg.id]}.`,2200);
-      openMidgardCouncil();
-    };
-    opts.appendChild(b);
+  let categories=[...new Set(MIDGARD_UPGRADES.map(u=>u.cat))];
+  categories.forEach(cat=>{
+    let head=document.createElement('div');
+    head.style.cssText='color:#d7b15c;font-size:12px;letter-spacing:.08em;margin:8px 0 4px;border-bottom:1px solid #3a3142;padding-bottom:2px';
+    head.textContent=cat.toUpperCase();
+    opts.appendChild(head);
+    MIDGARD_UPGRADES.filter(u=>u.cat===cat).forEach(upg=>{
+      let rank=prog[upg.id]||0;
+      let maxed=rank>=MIDGARD_UPGRADE_MAX;
+      let cost=maxed?0:midgardUpgradeCost(rank);
+      let b=document.createElement('button');
+      b.className='npc-btn';
+      b.disabled=maxed||P.gold<cost;
+      let pips=Array.from({length:MIDGARD_UPGRADE_MAX},(_,i)=>i<rank?'<span style="color:#d7b15c">●</span>':'<span style="color:#3a3142">○</span>').join(' ');
+      b.innerHTML=`<span><b>${upg.name}</b> <span style="color:#d7b15c;font-size:11px">${pips}</span><br><small style="color:#8d8574">${upg.summary}${maxed?'<br><span style="color:#d7b15c">Fully invested.</span>':'<br>Next: '+upg.perRank}</small></span><span style="color:${maxed?'#666':'#ffd700'};float:right;margin-left:8px">${maxed?'MAX':cost+'g'}</span>`;
+      b.onclick=()=>{
+        if(maxed||P.gold<cost)return;
+        P.gold-=cost;
+        prog[upg.id]=rank+1;
+        ensureMidgardProgress();
+        renderInv();
+        saveGame(false);
+        msg(`${upg.name} improved to Rank ${prog[upg.id]}.`,2000);
+        openMidgardCouncil();
+      };
+      opts.appendChild(b);
+    });
   });
   openPanel('npc');
 }
@@ -2399,6 +2491,77 @@ function updateAmbientWorld(dt){
     for(let i=0;i<count;i++)spawnAmbientWorldParticle();
     ambientWorldTimer=320+Math.random()*420;
   }
+  updateWeather(dt);
+}
+let weatherState='clear';
+let weatherTimer=20000+Math.random()*30000;
+let weatherSpawnTimer=0;
+const WEATHER_STATES=['clear','rain','snow','mist','clear','clear'];
+function updateWeather(dt){
+  if(inDungeon)return;
+  weatherTimer-=dt;
+  if(weatherTimer<=0){
+    weatherState=WEATHER_STATES[Math.floor(Math.random()*WEATHER_STATES.length)];
+    weatherTimer=(weatherState==='clear'?40000:60000)+Math.random()*40000;
+  }
+  if(weatherState==='clear')return;
+  weatherSpawnTimer-=dt;
+  if(weatherSpawnTimer<=0){
+    let burst=weatherState==='rain'?6:weatherState==='snow'?2:1;
+    for(let i=0;i<burst;i++)spawnWeatherParticle(weatherState);
+    weatherSpawnTimer=weatherState==='rain'?28:weatherState==='snow'?80:160;
+  }
+}
+function spawnWeatherParticle(state){
+  if(!cam)return;
+  let x=cam.x-40+Math.random()*(W+80);
+  let y=cam.y-30+Math.random()*40;
+  if(state==='rain'){
+    particles.push({
+      x,y,
+      vx:1.4+Math.random()*.6,
+      vy:9+Math.random()*3,
+      col:'rgba(155,180,210,.55)',
+      life:1,
+      lifeRate:1100+Math.random()*400,
+      sz:1.2+Math.random()*.6,
+      isW:true,
+      style:'rain',
+      gravity:0,
+    });
+  }else if(state==='snow'){
+    particles.push({
+      x,y,
+      vx:.18+Math.random()*.32,
+      vy:.55+Math.random()*.4,
+      col:'rgba(232,238,250,.78)',
+      life:1,
+      lifeRate:5500+Math.random()*2200,
+      sz:1.4+Math.random()*1.1,
+      isW:true,
+      style:'snow',
+      gravity:.0006,
+      swayAmp:.6+Math.random()*.7,
+      swayPeriod:1100+Math.random()*900,
+      swayPhase:Math.random()*Math.PI*2,
+    });
+  }else if(state==='mist'){
+    particles.push({
+      x,y:cam.y+40+Math.random()*(H-80),
+      vx:.05+Math.random()*.12,
+      vy:-.04+Math.random()*.04,
+      col:'rgba(195,205,222,.18)',
+      life:1,
+      lifeRate:6500+Math.random()*2500,
+      sz:8+Math.random()*8,
+      isW:true,
+      style:'mist',
+      gravity:0,
+      swayAmp:.4+Math.random()*.3,
+      swayPeriod:1600+Math.random()*900,
+      swayPhase:Math.random()*Math.PI*2,
+    });
+  }
 }
 function bossFamilySigColor(family){
   return family==='grave'?'#d0b6ff':family==='ember'?'#ff7a2f':family==='serpent'?'#61d36d':family==='wolf'?'#f3deb0':'#a7a7ff';
@@ -2490,7 +2653,7 @@ function canSalvageItem(item){
 function salvageYield(item){
   let base={common:1,rare:3,epic:8,legendary:18}[item?.rarity]||1;
   let upgBonus=Math.max(0,item?.upg||0);
-  return base+upgBonus;
+  return Math.max(1,Math.floor((base+upgBonus)*midgardSalvageMult()));
 }
 function activeStorageRef(){
   return !inDungeon&&stashMode?stash:P.inv;
@@ -3840,6 +4003,12 @@ function getGuardianMaskedBodyImage(bodyImg, animState, attackPose){
   return canvas;
 }
 
+function getClassModelPoseImage(classId, animState){
+  if(!USE_CLASS_MODEL_POSES_IN_WORLD)return null;
+  let pose = animState === 'attack' ? 'attack' : (animState === 'walk' || animState === 'run' ? 'move' : 'idle');
+  return AssetLoader?.getImage?.(`${classId}_model_${pose}`) || null;
+}
+
 function drawPlayerSprite(sx, sy) {
   if (!USE_PLACEHOLDER_SPRITES || !AssetLoader || !AssetLoader.isLoaded) {
     // Fallback to old method if assets not loaded
@@ -3848,6 +4017,7 @@ function drawPlayerSprite(sx, sy) {
   }
   
   let classId = P.classId || 'berserker';
+  let modelPolicy = PLAYER_MODEL_RENDER_POLICY[classId] || PLAYER_MODEL_RENDER_POLICY.berserker;
   let ws = getWeaponStyle();
   let fx = P.facing.x || 1;
   let fy = P.facing.y || 0;
@@ -3931,13 +4101,15 @@ function drawPlayerSprite(sx, sy) {
   
   // Draw character body (animated or static)
   let bodyKey = `${classId}_body`;
-  let bodyImg = animFrame || AssetLoader.getImage(bodyKey);
+  let modelPoseImg = modelPolicy.bodyOnly ? getClassModelPoseImage(classId, animState) : null;
+  let useModelBody = !!(modelPoseImg && modelPoseImg.complete && modelPoseImg.naturalWidth > 0);
+  let bodyImg = useModelBody ? modelPoseImg : (animFrame || AssetLoader.getImage(bodyKey));
   if (bodyImg && bodyImg.complete && bodyImg.naturalWidth > 0) {
-    let useMaskedGuardianBody = false;
-    let useMaskedBerserkerBody = classId === 'berserker' && ws.id !== 'axe';
-    let useMaskedRangerBody = classId === 'ranger' && ws.id !== 'bow';
-    let useMaskedRunecasterBody = classId === 'runecaster' && ws.id !== 'arcane';
-    let renderBodyImg = useMaskedGuardianBody
+    let useMaskedGuardianBody = !useModelBody && !modelPolicy.bodyOnly && classId === 'guardian' && ws.id !== 'blade';
+    let useMaskedBerserkerBody = !useModelBody && !modelPolicy.bodyOnly && classId === 'berserker' && ws.id !== 'axe';
+    let useMaskedRangerBody = !useModelBody && !modelPolicy.bodyOnly && classId === 'ranger' && ws.id !== 'bow';
+    let useMaskedRunecasterBody = !useModelBody && !modelPolicy.bodyOnly && classId === 'runecaster' && ws.id !== 'arcane';
+    let renderBodyImg = useModelBody ? bodyImg : useMaskedGuardianBody
       ? getGuardianMaskedBodyImage(bodyImg, bodyMaskState, attackPose)
       : useMaskedBerserkerBody
         ? getBerserkerMaskedBodyImage(bodyImg, bodyMaskState, attackPose)
@@ -3948,22 +4120,32 @@ function drawPlayerSprite(sx, sy) {
         : bodyImg;
     let baseWidth = Math.max(1, bodyImg.width);
     let baseHeight = Math.max(1, bodyImg.height);
-    let bodyScale = Math.min(CHAR_H / baseWidth, CHAR_H / baseHeight);
+    let targetBodyHeight = useModelBody ? CHAR_H * (CLASS_MODEL_BODY_SCALE[classId] || 1.0) : CHAR_H;
+    let bodyScale = useModelBody ? (targetBodyHeight / baseHeight) : Math.min(CHAR_H / baseWidth, CHAR_H / baseHeight);
     let bodyWidth = baseWidth * bodyScale;
     let bodyHeight = baseHeight * bodyScale;
-    let drawY = sy - bodyHeight * 0.72;
+    let drawY = sy - bodyHeight * (useModelBody ? 0.74 : 0.72);
+    let bodyTop = drawY;
+    let bodyCenterY = drawY + bodyHeight / 2;
     
     // Flip sprite if facing left
     ctx.save();
     if (fx < 0) {
-      ctx.translate(sx + fx * guardianBodyLean, drawY + bodyHeight / 2);
+      ctx.translate(sx + fx * guardianBodyLean, bodyCenterY);
       ctx.scale(-1, 1);
       ctx.drawImage(renderBodyImg, -bodyWidth / 2, -bodyHeight / 2, bodyWidth, bodyHeight);
     } else {
-      ctx.translate(sx + fx * guardianBodyLean, drawY + bodyHeight / 2);
+      ctx.translate(sx + fx * guardianBodyLean, bodyCenterY);
       ctx.drawImage(renderBodyImg, -bodyWidth / 2, -bodyHeight / 2, bodyWidth, bodyHeight);
     }
     ctx.restore();
+
+    drawPlayerSprite._lastBodyMetrics = {
+      top: bodyTop,
+      width: bodyWidth,
+      height: bodyHeight,
+      centerY: bodyCenterY
+    };
   } else {
     // Fallback to procedural drawing
     drawPlayerFigure(sx, sy);
@@ -3974,11 +4156,7 @@ function drawPlayerSprite(sx, sy) {
   // Draw weapon
   let weaponKey = getHeldWeaponAssetKey(P.equip.weapon, ws);
   let weaponImg = AssetLoader.getImage(weaponKey);
-  let suppressHeldWeapon =
-    (classId === 'berserker' && ws.id === 'axe') ||
-    (classId === 'ranger' && ws.id === 'bow') ||
-    (classId === 'runecaster' && ws.id === 'arcane') ||
-    (classId === 'guardian' && ws.id === 'blade');
+  let suppressHeldWeapon = modelPolicy.allowHeldWeapon === false;
   if (!suppressHeldWeapon && weaponImg && weaponImg.complete && weaponImg.naturalWidth > 0) {
     let isMelee = ws.id !== 'bow' && ws.id !== 'arcane';
     let profile = getWeaponRenderProfile(weaponKey, ws, classId);
@@ -4051,8 +4229,9 @@ function drawPlayerSprite(sx, sy) {
       let armorProfile = getArmorRenderProfile(P.equip.armor, classId);
       let armorHeight = armorProfile.h * CHAR_OVERLAY_SCALE;
       let armorWidth = armorProfile.w * CHAR_OVERLAY_SCALE;
+      let bodyMetrics = drawPlayerSprite._lastBodyMetrics || {top:sy-CHAR_H*0.72,height:CHAR_H,width:CHAR_H*0.72};
       let drawX = sx - armorWidth / 2 + fx * (attackEase * 4);
-      let drawY = sy + armorProfile.y * CHAR_OVERLAY_SCALE;
+      let drawY = bodyMetrics.top + bodyMetrics.height * (armorProfile.anchorY ?? 0.4);
 
       ctx.globalAlpha = armorProfile.alpha;
       ctx.drawImage(armorImg, drawX, drawY, armorWidth, armorHeight);
@@ -4063,11 +4242,13 @@ function drawPlayerSprite(sx, sy) {
     let helmKey = getHelmAssetKey(P.equip.helm);
     let helmImg = AssetLoader.getImage(helmKey);
     if (helmImg && helmImg.complete && helmImg.naturalWidth > 0) {
-      let helmHeight = 24 * CHAR_OVERLAY_SCALE;
-      let helmWidth = 24 * CHAR_OVERLAY_SCALE;
+      let helmProfile = getHelmRenderProfile(classId);
+      let bodyMetrics = drawPlayerSprite._lastBodyMetrics || {top:sy-CHAR_H*0.72,height:CHAR_H,width:CHAR_H*0.72};
+      let helmHeight = helmProfile.h * CHAR_OVERLAY_SCALE;
+      let helmWidth = helmProfile.w * CHAR_OVERLAY_SCALE;
       let drawX = sx - helmWidth / 2 + fx * (attackEase * 2);
-      let drawY = sy - helmHeight - 18 * CHAR_OVERLAY_SCALE;
-      ctx.globalAlpha = 0.92;
+      let drawY = bodyMetrics.top + bodyMetrics.height * (helmProfile.anchorY ?? 0.1);
+      ctx.globalAlpha = helmProfile.alpha;
       ctx.drawImage(helmImg, drawX, drawY, helmWidth, helmHeight);
       ctx.globalAlpha = 1.0;
     }
@@ -4915,10 +5096,12 @@ function drawWorldNPCFigure(n,sx,sy){
     const npcAnimFps = animState === 'idle' ? 2 : animState === 'walk' ? 4 : 3;
     
     let animKey = `npc_${artRoleKey}_${animState}`;
-    if (roleKey === 'pathfinder' && AssetLoader.animations['npc_pathfinder_walk']?.frames?.find(Boolean)) {
-      animKey = 'npc_pathfinder_walk';
+    let hasFrames = AssetLoader.animations[animKey]?.frames?.find(Boolean);
+    if (!hasFrames && animState !== 'idle') {
+      animKey = `npc_${artRoleKey}_idle`;
+      hasFrames = AssetLoader.animations[animKey]?.frames?.find(Boolean);
     }
-    let animFrame = AssetLoader.getAnimationFrame(animKey, Date.now(), npcAnimFps);
+    let animFrame = hasFrames ? AssetLoader.getAnimationFrame(animKey, Date.now(), npcAnimFps) : null;
     
     const npcImg = animFrame;
     const shadowImg = AssetLoader.getImage('enemy_shadow');
@@ -4942,11 +5125,28 @@ function drawWorldNPCFigure(n,sx,sy){
       let spriteHeight = baseHeight * spriteScale;
       let drawX = sx - spriteWidth / 2;
       let drawY = sy - spriteHeight * 0.7;
-      
+
+      // Procedural walk effect: bob + tilt + foot-shadow sway when moving and walk frames are absent.
+      let isWalking = animState === 'walk';
+      let walkBob = 0, walkTilt = 0, walkPhase = 0;
+      if (isWalking) {
+        if (n._gaitT == null) n._gaitT = Math.random() * Math.PI * 2;
+        n._gaitT = (n._gaitT || 0) + 0.18;
+        walkPhase = n._gaitT;
+        walkBob = Math.abs(Math.sin(walkPhase)) * 1.6;
+        walkTilt = Math.sin(walkPhase * 0.5) * 0.05;
+        // Foot-shadow sway under sprite
+        let footSway = Math.sin(walkPhase) * 4;
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.beginPath();
+        ctx.ellipse(sx + footSway * 0.5, sy + 13, 5, 1.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       // Apply effects based on NPC type
       let scholar = n.role === 'Runespeaker' || n.role === 'Lorekeeper';
       let trade = n.role === 'Forgekeeper' || n.role === 'Road Merchant';
-      
+
       if (scholar) {
         ctx.shadowColor = '#b9a4ff';
         ctx.shadowBlur = 12;
@@ -4954,8 +5154,16 @@ function drawWorldNPCFigure(n,sx,sy){
         ctx.shadowColor = '#d7b15c';
         ctx.shadowBlur = 10;
       }
-      
-      ctx.drawImage(npcImg, drawX, drawY, spriteWidth, spriteHeight);
+
+      if (isWalking) {
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(walkTilt);
+        ctx.drawImage(npcImg, drawX - sx, drawY - sy - walkBob, spriteWidth, spriteHeight);
+        ctx.restore();
+      } else {
+        ctx.drawImage(npcImg, drawX, drawY, spriteWidth, spriteHeight);
+      }
 
       const accentX = sx;
       const accentY = sy + 2;
@@ -5333,7 +5541,15 @@ function attackEaseForStyle(p,styleId){
 function getWeaponRenderProfile(assetKey,ws=getWeaponStyle(),classId=P.classId){
   let base=BASE_WEAPON_RENDER_PROFILES[ws.id]||{rest:1.6,swing:-.35,reachIdle:7,reachAtk:16,size:24,gripX:.3,gripY:.68,holdLift:6};
   let family=CLASS_WEAPON_RENDER_PROFILES[ws.id];
-  return {...base,...(family?.default||{}),...(family?.[classId]||{}),...(UNIQUE_WEAPON_RENDER_OVERRIDES[assetKey]||{})};
+  let merged={...base,...(family?.default||{}),...(family?.[classId]||{}),...(UNIQUE_WEAPON_RENDER_OVERRIDES[assetKey]||{})};
+  let scale=typeof CHAR_OVERLAY_SCALE!=='undefined'?CHAR_OVERLAY_SCALE:1;
+  return {
+    ...merged,
+    size: Math.round((merged.size||24)*scale),
+    reachIdle: (merged.reachIdle||7)*scale,
+    reachAtk: (merged.reachAtk||16)*scale,
+    holdLift: (merged.holdLift||6)*scale
+  };
 }
 function getBowPose(classId=P.classId, weaponItem=P.equip.weapon, sx=null, sy=null){
   let ws = getWeaponStyle(weaponItem);
@@ -5381,14 +5597,22 @@ function getHelmAssetKey(item=P.equip.helm){
 function getArmorRenderProfile(item=P.equip.armor,classId=P.classId){
   let name=(item?.name||'').toLowerCase();
   let profile={
-    berserker:{w:22,h:32,y:-24,alpha:0.62},
-    ranger:{w:19,h:28,y:-21,alpha:0.58},
-    runecaster:{w:20,h:29,y:-22,alpha:0.56},
-    guardian:{w:24,h:34,y:-25,alpha:0.66}
-  }[classId]||{w:21,h:30,y:-23,alpha:0.6};
-  if(name.includes('dragon scale')||name.includes('barrow plate')||name.includes('valkyrie plate'))return {...profile,w:profile.w+2,h:profile.h+2,alpha:Math.min(0.72,profile.alpha+0.04)};
-  if(name.includes('helwoven shroud')||name.includes('seidr mantle')||name.includes('leather vest'))return {...profile,w:Math.max(17,profile.w-1),h:Math.max(26,profile.h-1),alpha:Math.max(0.5,profile.alpha-0.04)};
+    berserker:{w:22,h:32,anchorY:0.37,alpha:0.62},
+    ranger:{w:19,h:28,anchorY:0.43,alpha:0.58},
+    runecaster:{w:20,h:29,anchorY:0.40,alpha:0.56},
+    guardian:{w:24,h:34,anchorY:0.36,alpha:0.66}
+  }[classId]||{w:21,h:30,anchorY:0.40,alpha:0.6};
+  if(name.includes('dragon scale')||name.includes('barrow plate')||name.includes('valkyrie plate'))return {...profile,w:profile.w+2,h:profile.h+2,alpha:Math.min(0.72,profile.alpha+0.04),anchorY:Math.max(0.34,profile.anchorY-0.01)};
+  if(name.includes('helwoven shroud')||name.includes('seidr mantle')||name.includes('leather vest'))return {...profile,w:Math.max(17,profile.w-1),h:Math.max(26,profile.h-1),alpha:Math.max(0.5,profile.alpha-0.04),anchorY:Math.min(0.45,profile.anchorY+0.015)};
   return profile;
+}
+function getHelmRenderProfile(classId=P.classId){
+  return {
+    berserker:{w:24,h:24,anchorY:0.09,alpha:0.94},
+    ranger:{w:22,h:22,anchorY:0.11,alpha:0.92},
+    runecaster:{w:22,h:22,anchorY:0.10,alpha:0.92},
+    guardian:{w:25,h:25,anchorY:0.08,alpha:0.95}
+  }[classId]||{w:23,h:23,anchorY:0.10,alpha:0.93};
 }
 function getWeaponProjectileOverrides(item=P.equip.weapon,ws=getWeaponStyle(item)){
   let name=(item?.name||'').toLowerCase();
@@ -5437,9 +5661,9 @@ function playerMeleeMult(){return classMod('meleeMult',1)*(1+equippedTotal('mele
 function playerAttackTempoMult(){return P._battleTranceTimer>0?0.88:1;}
 function frostDamageMult(){return(P.perks.some(p=>p.name==='Frost Touch')?1.25:1)*playerSkillMult();}
 function playerLifeSteal(){return (equippedTotal('lifesteal')+(P.perks.some(p=>p.name==='Blood Drain')?0.05:0))*(inDungeon&&dungeonHasMod('Withering')?0.7:1);}
-function playerDamageReduction(){return classMod('damageReduction',0)+equippedTotal('damageReduction')+(P._bulwarkWardTimer>0?0.12:0);}
+function playerDamageReduction(){return classMod('damageReduction',0)+equippedTotal('damageReduction')+(P._bulwarkWardTimer>0?0.12:0)+midgardDrBonus();}
 function playerDef(){return P.def+(P.equip.armor?.def||0)+(P.equip.helm?.def||0)+(P._skaldBuff?.def||0);}
-function playerCrit(){return .12+P.level*.01+(equippedTotal('bonusCrit')*.01)+(P.perks.some(p=>p.name==='Eagle Eyes')?0.1:0)+classMod('critBonus',0)+(hasEquippedSpecial('crit')?0.08:0)+(P._omenCritBonus||0)+(P._skaldBuff?.crit||0)+(P._huntmasterTimer>0?0.08:0);}
+function playerCrit(){return .12+P.level*.01+(equippedTotal('bonusCrit')*.01)+(P.perks.some(p=>p.name==='Eagle Eyes')?0.1:0)+classMod('critBonus',0)+(hasEquippedSpecial('crit')?0.08:0)+(P._omenCritBonus||0)+(P._skaldBuff?.crit||0)+(P._huntmasterTimer>0?0.08:0)+midgardCritBonus();}
 function playerVsEliteMult(target){return target&&(target.isElite||target.isBoss)&&P.perks.some(p=>p.name==='Executioner')?1.25:1;}
 function playerVsControlMult(target){return target&&(target.froze>0||target.slow>0)&&P.perks.some(p=>p.name==='Winter\'s Bite')?1.2:1;}
 function reduceOtherCooldowns(ms,except=-1){
@@ -5514,7 +5738,7 @@ function takeDamage(amt,ignoreDefense=false,defenseFactor=.4){
 function gainXP(amt){
   let b=P.perks.some(p=>p.name==="Odin's Sight")?1.3:1;
   let bonus=dungeonHasMod('Blessed')?2:1;
-  P.xp+=Math.floor(amt*b*bonus);
+  P.xp+=Math.floor(amt*b*bonus*midgardXpMult());
   while(P.xp>=P.xpNext)levelUp();
 }
 
@@ -5548,6 +5772,9 @@ function rebuildClassDerivedStats(){
   P.def+=attributeRank('guard')*ATTRIBUTE_VALUES.guard;
   P.spd+=attributeRank('swiftness')*ATTRIBUTE_VALUES.swiftnessSpeed;
   P.maxStamina+=attributeRank('swiftness')*ATTRIBUTE_VALUES.swiftnessStamina;
+  P.maxHp+=midgardHpBonus();
+  P.baseDmg+=midgardAtkBonus();
+  P.spd+=midgardSpdBonus();
   if(hasPerk('Berserker Blood')){P.maxHp+=60;P.baseDmg+=6;}
   if(hasPerk('Runic Mastery'))mpRegenBonus+=2;
   if(hasPerk('Iron Skin'))P.def+=15;
@@ -5829,10 +6056,10 @@ function applyPerk(pk){
   if(pk.name==='Bulwark')P._bulwarkWardTimer=Math.max(P._bulwarkWardTimer||0,2500);
 }
 function classPresentation(cls){
-  if(cls.id==='berserker')return{accent:'#d36c45',role:'Frontline Reaver',passive:'Thrives in close combat with stronger melee damage and longer rage windows.',loadout:'Berserker Axe, Leather Vest, and two Minor Heals.',signature:'Best when you stay on top of enemies and force momentum.',focus:[['HP',cls.stats.maxHp],['ATK',cls.stats.baseDmg],['RUN',cls.stats.maxStamina]]};
-  if(cls.id==='ranger')return{accent:'#8fbf65',role:'Mobile Hunter',passive:'Excels with ranged power, bonus crit, and efficient sprint control.',loadout:'Hunter Longbow, Leather Vest, one heal, and one mana vial.',signature:'Strongest when kiting, piercing lanes, and punishing openings.',focus:[['SPD',cls.stats.spd.toFixed(2)],['CRIT','High'],['RUN',cls.stats.maxStamina]]};
-  if(cls.id==='runecaster')return{accent:'#7ab8ff',role:'Arcane Conduit',passive:'Higher skill power, better mana economy, and shorter cooldown cycles.',loadout:'Storm Staff, Runecarved Tome, two mana vials, and one heal.',signature:'Controls space with spells and scales hard with runes and mana.',focus:[['MP',cls.stats.maxMp],['ATK',cls.stats.baseDmg],['SPELL','Boosted']]};
-  return{accent:'#d7b15c',role:'Bulwark Warden',passive:'Natural damage reduction and trap resistance make every floor steadier.',loadout:'Draugr Sword, Warden Mail, Thor\'s Helm, and two Minor Heals.',signature:'Absorbs pressure, holds corridors, and outlasts brutal rooms.',focus:[['DEF',cls.stats.def],['HP',cls.stats.maxHp],['WARD','Heavy']]};
+  if(cls.id==='berserker')return{accent:'#d36c45',role:'Frontline Reaver',art:'assets/ui/berserker-model-sheet.png',artAlt:'Berserker model sheet',passive:'Thrives in close combat with stronger melee damage and longer rage windows.',loadout:'Berserker Axe, Leather Vest, and two Minor Heals.',signature:'Best when you stay on top of enemies and force momentum.',focus:[['HP',cls.stats.maxHp],['ATK',cls.stats.baseDmg],['RUN',cls.stats.maxStamina]]};
+  if(cls.id==='ranger')return{accent:'#8fbf65',role:'Mobile Hunter',art:'assets/ui/ranger-model-sheet.png',artAlt:'Ranger model sheet',passive:'Excels with ranged power, bonus crit, and efficient sprint control.',loadout:'Hunter Longbow, Leather Vest, one heal, and one mana vial.',signature:'Strongest when kiting, piercing lanes, and punishing openings.',focus:[['SPD',cls.stats.spd.toFixed(2)],['CRIT','High'],['RUN',cls.stats.maxStamina]]};
+  if(cls.id==='runecaster')return{accent:'#7ab8ff',role:'Arcane Conduit',art:'assets/ui/runecaster-model-sheet.png',artAlt:'Runecaster model sheet',passive:'Higher skill power, better mana economy, and shorter cooldown cycles.',loadout:'Storm Staff, Runecarved Tome, two mana vials, and one heal.',signature:'Controls space with spells and scales hard with runes and mana.',focus:[['MP',cls.stats.maxMp],['ATK',cls.stats.baseDmg],['SPELL','Boosted']]};
+  return{accent:'#d7b15c',role:'Bulwark Warden',art:'assets/ui/guardian-model-sheet.png',artAlt:'Guardian model sheet',passive:'Natural damage reduction and trap resistance make every floor steadier.',loadout:'Draugr Sword, Warden Mail, Thor\'s Helm, and two Minor Heals.',signature:'Absorbs pressure, holds corridors, and outlasts brutal rooms.',focus:[['DEF',cls.stats.def],['HP',cls.stats.maxHp],['WARD','Heavy']]};
 }
 function updateClassPanelPresentation(){
   let title=document.getElementById('class-panel-title');
@@ -5851,7 +6078,8 @@ function initClassPanel(){
     let d=document.createElement('div');d.className='class-card';
     let view=classPresentation(cls);
     d.style.setProperty('--class-accent',view.accent);
-    d.innerHTML=`<div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">${cls.icon}</span> ${cls.name}</div><div class="class-role">${view.role}</div></div><div class="class-pillar"><b>${cls.stats.maxHp}</b><span>Vitality</span></div></div><div class="class-desc">${cls.desc}</div><div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">${view.loadout}</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">${view.passive}</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">${view.signature}</div></div><div class="class-stats">${view.focus.map(stat=>`<div class="class-stat"><b>${stat[1]}</b><span>${stat[0]}</span></div>`).join('')}</div><div class="class-select">${(saveLoaded||P.classId)?'Take This Form':'Begin As '+cls.name}</div>`;
+    let artMarkup=view.art?`<div class="class-art-wrap"><img class="class-art" src="${view.art}" alt="${view.artAlt||cls.name}"></div>`:'';
+    d.innerHTML=`<div class="class-card-head"><div class="class-name-wrap"><div class="class-name"><span class="class-icon">${cls.icon}</span> ${cls.name}</div><div class="class-role">${view.role}</div></div><div class="class-pillar"><b>${cls.stats.maxHp}</b><span>Vitality</span></div></div><div class="class-desc">${cls.desc}</div>${artMarkup}<div class="class-grid"><div class="class-box"><h4>Starting Loadout</h4><div class="class-loadout">${view.loadout}</div></div><div class="class-box"><h4>Passive Edge</h4><div class="class-passive">${view.passive}</div></div></div><div class="class-box" style="margin-top:10px"><h4>Combat Signature</h4><div class="class-skillsig">${view.signature}</div></div><div class="class-stats">${view.focus.map(stat=>`<div class="class-stat"><b>${stat[1]}</b><span>${stat[0]}</span></div>`).join('')}</div><div class="class-select">${(saveLoaded||P.classId)?'Take This Form':'Begin As '+cls.name}</div>`;
     d.onclick=()=>startClass(cls.id);
     wrap.appendChild(d);
   });
@@ -6234,7 +6462,7 @@ function openSettings(){updateAudioUI();openPanel('settings');}
 function toggleStashMode(){if(inDungeon){msg('âš ï¸ The stash is only accessible in Ravenwatch.',1400);return;}stashMode=!stashMode;renderInv();}
 function moveToStash(idx){
   let item=P.inv[idx];if(!item||isStackable(item))return;
-  if(stash.length>=60){msg('Stash is full.',1200);return;}
+  if(stash.length>=stashCap()){msg('Stash is full.',1200);return;}
   stash.push(cloneInvItem(item));
   removeItemFromInventory(idx,1);
   renderInv();
@@ -6700,6 +6928,7 @@ function buildShopUI(npc){
   allShop.forEach(item=>{
     let isP=item.type==='potion';
     let price=isP?{common:15,rare:40,epic:100,legendary:300}[item.rarity]||15:Math.floor((SELL_PRICE[item.rarity]||8)*3.5);
+    price=Math.max(1,Math.floor(price*shopPriceMult()));
     let b=document.createElement('button');b.className='npc-btn';
     let rc=isP?'#ff4488':rarityColor(item.rarity);
     b.innerHTML=`<span>${item.icon} ${item.name} <span style="color:${rc};font-size:11px">[${isP?'POT':item.rarity[0].toUpperCase()}]</span> <span style="color:#555;font-size:11px">${item.desc||''}</span></span><span style="color:#ffd700;float:right;margin-left:8px">${price}g</span>`;
@@ -7392,11 +7621,32 @@ function drawWorldSiteSprite(site,sx,sy){
     ctx.fillRect(sx-3,sy+5,6,2);
     drawGlow(sx,sy+5,22,'rgb(159,140,255)',.10*runePulse);
   }else if(site.kind==='watcher'){
-    let dir=site.facing==='left'?-1:1;
+    let homeDir=site.facing==='left'?-1:1;
     let isHuginn=site.watcherId==='huginn';
-    let bob=Math.sin(Date.now()/420+site.x*.35+site.y*.21)*1.6;
     let eyePulse=pulse(220,site.x+site.y,.55,1);
     let wingFlutter=pulse(820,site.x+site.y*1.3,.6,1);
+    // Periodic flight cycle: home → fly to gate → linger → fly back → home
+    let cycleSec=32;
+    let phaseOffset=isHuginn?0:cycleSec*.5;
+    let phase=((Date.now()/1000)+phaseOffset)%cycleSec;
+    let flightState='home',flightT=0;
+    if(phase<20){flightState='home';}
+    else if(phase<23.5){flightState='outbound';flightT=(phase-20)/3.5;}
+    else if(phase<27){flightState='gate';flightT=1;}
+    else if(phase<30.5){flightState='inbound';flightT=1-(phase-27)/3.5;}
+    let portal=worldLandmarks.find(l=>l.kind==='portal');
+    let homeWx=site.x*T+T/2,homeWy=site.y*T+T/2;
+    let gateWx=portal?portal.x*T+T/2+(isHuginn?-12:12):homeWx;
+    let gateWy=portal?portal.y*T+T/2-6:homeWy-40;
+    let drawWx=homeWx+(gateWx-homeWx)*flightT;
+    let drawWy=homeWy+(gateWy-homeWy)*flightT;
+    if(flightState==='outbound'||flightState==='inbound')drawWy-=Math.sin(flightT*Math.PI)*22;
+    let isFlying=flightState==='outbound'||flightState==='inbound';
+    let isAtGate=flightState==='gate';
+    let dir=isFlying?((gateWx-homeWx>0?1:-1)*(flightState==='inbound'?-1:1)):isAtGate?(isHuginn?1:-1):homeDir;
+    let bob=isAtGate||flightState==='home'?Math.sin(Date.now()/420+site.x*.35+site.y*.21)*1.6:0;
+    let ravenScreenX=(flightState==='home')?sx:(drawWx-cam.x);
+    let ravenScreenY=(flightState==='home')?sy:(drawWy-cam.y);
     drawCastShadow(sx,sy+20,16,5);
     drawShadow(sx,sy+19,15,4,.28);
     // Stone perch / cairn
@@ -7412,7 +7662,7 @@ function drawWorldSiteSprite(site,sx,sy){
     ctx.fillRect(sx+5,sy+9,1,11);
     // Tail feathers (behind body, in transform space)
     ctx.save();
-    ctx.translate(sx,sy+bob);
+    ctx.translate(ravenScreenX,ravenScreenY+bob);
     if(dir<0)ctx.scale(-1,1);
     let bodyDark=isHuginn?'#0d121d':'#120e09';
     let bodyMid=isHuginn?'#181f30':'#1f1812';
@@ -7434,24 +7684,56 @@ function drawWorldSiteSprite(site,sx,sy){
     ctx.beginPath();
     ctx.ellipse(-2,-2,7,4,0,0,Math.PI*2);
     ctx.fill();
-    // Folded wing (subtle flutter offset)
-    let wingY=1+wingFlutter*.6;
-    ctx.fillStyle=bodyMid;
-    ctx.beginPath();
-    ctx.moveTo(-8,-2);
-    ctx.lineTo(3,wingY-1);
-    ctx.lineTo(5,wingY+3);
-    ctx.lineTo(-7,3);
-    ctx.closePath();
-    ctx.fill();
-    // Wing feather lines
-    ctx.strokeStyle=featherCol;
-    ctx.lineWidth=.7;
-    ctx.beginPath();
-    ctx.moveTo(-6,0);ctx.lineTo(0,wingY+.5);
-    ctx.moveTo(-4,1.4);ctx.lineTo(2,wingY+1);
-    ctx.moveTo(-2,2.2);ctx.lineTo(4,wingY+2);
-    ctx.stroke();
+    if(isFlying){
+      // Spread wings flapping in flight
+      let flap=Math.sin(Date.now()/110+site.x*.5);
+      let wTop=-6-flap*5,wMid=-1-flap*3,wTip=3+flap*2;
+      ctx.fillStyle=bodyMid;
+      // Far wing (top, spread up)
+      ctx.beginPath();
+      ctx.moveTo(-2,-2);
+      ctx.lineTo(-12,wTop);
+      ctx.lineTo(-18,wTop+4);
+      ctx.lineTo(-12,wMid);
+      ctx.lineTo(-4,1);
+      ctx.closePath();
+      ctx.fill();
+      // Near wing (the one we see, mirror down)
+      ctx.fillStyle=bodyDark;
+      ctx.beginPath();
+      ctx.moveTo(-2,1);
+      ctx.lineTo(-10,wTip+2);
+      ctx.lineTo(-4,wTip+5);
+      ctx.lineTo(2,3);
+      ctx.closePath();
+      ctx.fill();
+      // Wing-tip feather lines
+      ctx.strokeStyle=featherCol;
+      ctx.lineWidth=.7;
+      ctx.beginPath();
+      ctx.moveTo(-12,wTop+1);ctx.lineTo(-15,wTop+5);
+      ctx.moveTo(-9,wTop+2);ctx.lineTo(-12,wTop+6);
+      ctx.stroke();
+    }else{
+      // Folded wing (subtle flutter offset)
+      let wingY=1+wingFlutter*.6;
+      ctx.fillStyle=bodyMid;
+      ctx.beginPath();
+      ctx.moveTo(-8,-2);
+      ctx.lineTo(3,wingY-1);
+      ctx.lineTo(5,wingY+3);
+      ctx.lineTo(-7,3);
+      ctx.closePath();
+      ctx.fill();
+      // Wing feather lines
+      ctx.strokeStyle=featherCol;
+      ctx.lineWidth=.7;
+      ctx.beginPath();
+      ctx.moveTo(-6,0);ctx.lineTo(0,wingY+.5);
+      ctx.moveTo(-4,1.4);ctx.lineTo(2,wingY+1);
+      ctx.moveTo(-2,2.2);ctx.lineTo(4,wingY+2);
+      ctx.stroke();
+    }
     // Head (smaller circle, slightly forward of body)
     ctx.fillStyle=bodyDark;
     ctx.beginPath();
@@ -7478,19 +7760,24 @@ function drawWorldSiteSprite(site,sx,sy){
     ctx.beginPath();
     ctx.arc(7,-4.5,1,0,Math.PI*2);
     ctx.fill();
-    // Tiny feet down to perch
-    ctx.strokeStyle='#1a1816';
-    ctx.lineWidth=1;
-    ctx.beginPath();
-    ctx.moveTo(-3,7);ctx.lineTo(-3,11);
-    ctx.moveTo(2,7);ctx.lineTo(2,11);
-    ctx.stroke();
+    // Tiny feet (only visible when perched)
+    if(!isFlying&&!isAtGate){
+      ctx.strokeStyle='#1a1816';
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(-3,7);ctx.lineTo(-3,11);
+      ctx.moveTo(2,7);ctx.lineTo(2,11);
+      ctx.stroke();
+    }else if(isFlying){
+      // Tucked feet
+      ctx.fillStyle='#1a1816';
+      ctx.fillRect(-2,5,4,2);
+    }
     ctx.restore();
-    // Glowing eye in screen-space — Huginn glows on viewer-RIGHT (its "right" eye), Muninn glows on viewer-LEFT (its "right" eye when mirrored)
+    // Glowing eye in screen-space — follows the raven wherever it goes (forward eye, body-anatomical)
     let glowColor=isHuginn?'rgb(142,202,244)':'rgb(216,108,47)';
-    let pupilFill=isHuginn?'#a8d8f8':'#f8b87a';
-    let eyeX=sx+(isHuginn?9:-9);
-    let eyeY=sy-4+bob;
+    let eyeX=ravenScreenX+9*dir;
+    let eyeY=ravenScreenY-4+bob;
     // Outer halo
     drawGlow(eyeX,eyeY,11,glowColor,.22*eyePulse);
     // Dark socket
@@ -7505,6 +7792,10 @@ function drawWorldSiteSprite(site,sx,sy){
     // Soft body glow (very faint, only on the eye side)
     drawGlow(eyeX,eyeY-1,16,glowColor,.10*eyePulse);
   }else if(site.kind==='portal'){
+    let bifState=(typeof ensureBifrostState==='function')?ensureBifrostState():{barrow:false,ember:false,seer:false,repairs:0};
+    let bifRepairs=bifState.repairs|0;
+    let bifFull=bifRepairs>=3;
+    let bifProgress=Math.min(1,bifRepairs/3);
     let shimmer=pulse(140,site.x+site.y,.65,1);
     let bandShift=(Date.now()/600)%1;
     drawCastShadow(sx,sy+22,36,10);
@@ -7541,39 +7832,71 @@ function drawWorldSiteSprite(site,sx,sy){
     ctx.fillStyle='rgba(255,255,255,.1)';
     ctx.fillRect(sx-25,sy-34,17,1.5);
     ctx.fillRect(sx+8,sy-34,17,1.5);
-    // Broken arch — top piece is jagged/missing (the "broken" Bifrost)
+    // Arch — progressively repairs as shards are restored
     ctx.fillStyle='#665e80';
     ctx.beginPath();
-    ctx.moveTo(sx-25,sy-34);
-    ctx.lineTo(sx-22,sy-46);
-    ctx.lineTo(sx-12,sy-50);
-    ctx.lineTo(sx-4,sy-44);
-    // Jagged break
-    ctx.lineTo(sx-2,sy-38);
-    ctx.lineTo(sx+1,sy-43);
-    ctx.lineTo(sx+4,sy-39);
-    ctx.lineTo(sx+8,sy-44);
-    ctx.lineTo(sx+14,sy-48);
-    ctx.lineTo(sx+22,sy-46);
-    ctx.lineTo(sx+25,sy-34);
-    ctx.lineTo(sx+8,sy-34);
-    ctx.lineTo(sx-8,sy-34);
+    if(bifFull){
+      // Fully closed arch
+      ctx.moveTo(sx-25,sy-34);
+      ctx.lineTo(sx-22,sy-46);
+      ctx.lineTo(sx-12,sy-50);
+      ctx.lineTo(sx,sy-52);
+      ctx.lineTo(sx+12,sy-50);
+      ctx.lineTo(sx+22,sy-46);
+      ctx.lineTo(sx+25,sy-34);
+      ctx.lineTo(sx-25,sy-34);
+    }else{
+      // Jagged break narrows as shards are added (gap shrinks toward center)
+      let gap=Math.max(2,8-bifRepairs*2);
+      ctx.moveTo(sx-25,sy-34);
+      ctx.lineTo(sx-22,sy-46);
+      ctx.lineTo(sx-12,sy-50);
+      ctx.lineTo(sx-gap,sy-44+(3-bifRepairs));
+      // jagged break (smaller as shards added)
+      ctx.lineTo(sx-gap+1,sy-38);
+      ctx.lineTo(sx-1,sy-41-bifRepairs);
+      ctx.lineTo(sx+2,sy-39);
+      ctx.lineTo(sx+gap-1,sy-44+(3-bifRepairs));
+      ctx.lineTo(sx+12,sy-50);
+      ctx.lineTo(sx+22,sy-46);
+      ctx.lineTo(sx+25,sy-34);
+      ctx.lineTo(sx-25,sy-34);
+    }
     ctx.closePath();
     ctx.fill();
-    // Floating broken stone fragments (suspended by magic)
+    // Floating fragments lock into the arch one by one as shards are restored
     let frag=Math.sin(Date.now()/700+site.x)*1.5;
     ctx.fillStyle='#5d566f';
-    ctx.fillRect(sx-2+frag*.4,sy-58,5,4);
-    ctx.fillRect(sx+5,sy-56-frag*.5,3,3);
-    ctx.fillRect(sx-7,sy-54+frag*.3,3,3);
-    // RAINBOW Bifrost shimmer between the pillars (this is the "Bifrost")
+    // fragment 1 (left) — locks at 1+ shards
+    if(bifRepairs>=1){
+      ctx.fillRect(sx-7,sy-46,5,4);
+      drawGlow(sx-5,sy-44,8,'rgb(159,140,255)',.18*shimmer);
+    }else{
+      ctx.fillRect(sx-2+frag*.4,sy-58,5,4);
+    }
+    // fragment 2 (center top) — locks at 2+
+    if(bifRepairs>=2){
+      ctx.fillRect(sx-1,sy-50,4,4);
+      drawGlow(sx+1,sy-48,8,'rgb(255,180,80)',.18*shimmer);
+    }else{
+      ctx.fillRect(sx+5,sy-56-frag*.5,3,3);
+    }
+    // fragment 3 (right) — locks at 3
+    if(bifRepairs>=3){
+      ctx.fillRect(sx+3,sy-46,5,4);
+      drawGlow(sx+5,sy-44,8,'rgb(122,184,255)',.18*shimmer);
+    }else{
+      ctx.fillRect(sx-7,sy-54+frag*.3,3,3);
+    }
+    // RAINBOW Bifrost shimmer between the pillars — alpha ramps with progress
+    let bandAlpha=0.22+0.55*bifProgress;
     let bifBands=[
-      {col:'rgba(255,80,80,.42)',o:0},
-      {col:'rgba(255,180,80,.42)',o:.16},
-      {col:'rgba(248,218,130,.42)',o:.32},
-      {col:'rgba(143,191,101,.42)',o:.48},
-      {col:'rgba(122,184,255,.42)',o:.64},
-      {col:'rgba(159,140,255,.42)',o:.80}
+      {col:`rgba(255,80,80,${bandAlpha})`,o:0},
+      {col:`rgba(255,180,80,${bandAlpha})`,o:.16},
+      {col:`rgba(248,218,130,${bandAlpha})`,o:.32},
+      {col:`rgba(143,191,101,${bandAlpha})`,o:.48},
+      {col:`rgba(122,184,255,${bandAlpha})`,o:.64},
+      {col:`rgba(159,140,255,${bandAlpha})`,o:.80}
     ];
     bifBands.forEach((b,i)=>{
       let bandY=sy+12-(i*8)-bandShift*8;
@@ -7583,32 +7906,102 @@ function drawWorldSiteSprite(site,sx,sy){
         bandY-=48;
       }
     });
-    // Soft veil over the rainbow (gives the dreamy/broken look)
-    ctx.fillStyle='rgba(20,16,30,.32)';
-    ctx.fillRect(sx-10,sy-32,20,44);
-    // Energy core (unstable)
-    ctx.fillStyle=`rgba(220,210,255,${.55+.3*shimmer})`;
-    ctx.beginPath();ctx.ellipse(sx,sy-8,4*shimmer+1,7*shimmer+2,0,0,Math.PI*2);ctx.fill();
+    // Soft veil over the rainbow — fades away as bridge is restored
+    let veilAlpha=Math.max(0,0.32-0.30*bifProgress);
+    if(veilAlpha>0.01){
+      ctx.fillStyle=`rgba(20,16,30,${veilAlpha})`;
+      ctx.fillRect(sx-10,sy-32,20,44);
+    }
+    // Restored bridge — fires straight up into the sky when complete
+    if(bifFull){
+      ctx.save();
+      let bridgeBands=[
+        {col:'rgba(255,90,90,.55)',x:-12},
+        {col:'rgba(255,170,80,.55)',x:-7},
+        {col:'rgba(248,218,130,.55)',x:-2},
+        {col:'rgba(143,191,101,.55)',x:2},
+        {col:'rgba(122,184,255,.55)',x:7},
+        {col:'rgba(159,140,255,.55)',x:12}
+      ];
+      // Vertical rainbow column shooting upward from the arch
+      let beamTop=sy-220;
+      let beamBase=sy-34;
+      bridgeBands.forEach(b=>{
+        let grad=ctx.createLinearGradient(sx+b.x,beamBase,sx+b.x,beamTop);
+        grad.addColorStop(0,b.col);
+        grad.addColorStop(0.7,b.col.replace(/[\d.]+\)/,'0.35)'));
+        grad.addColorStop(1,b.col.replace(/[\d.]+\)/,'0)'));
+        ctx.fillStyle=grad;
+        ctx.fillRect(sx+b.x-2,beamTop,4,beamBase-beamTop);
+      });
+      // Bright core column
+      let coreGrad=ctx.createLinearGradient(sx,beamBase,sx,beamTop);
+      coreGrad.addColorStop(0,'rgba(255,255,255,.55)');
+      coreGrad.addColorStop(0.6,'rgba(255,250,230,.18)');
+      coreGrad.addColorStop(1,'rgba(255,250,230,0)');
+      ctx.fillStyle=coreGrad;
+      ctx.fillRect(sx-3,beamTop,6,beamBase-beamTop);
+      // Light pulses traveling upward inside the column
+      for(let p=0;p<4;p++){
+        let t=((Date.now()/1100)+p*.25)%1;
+        let py=beamBase-(beamBase-beamTop)*t;
+        let pulseAlpha=.6*(1-t);
+        ctx.fillStyle=`rgba(255,250,230,${pulseAlpha})`;
+        ctx.beginPath();ctx.ellipse(sx,py,3.5,2,0,0,Math.PI*2);ctx.fill();
+      }
+      // Bloom at the base of the beam
+      drawGlow(sx,sy-40,28,'rgb(255,250,230)',.32);
+      drawGlow(sx,sy-100,18,'rgb(159,200,255)',.22);
+      ctx.restore();
+    }
+    // Energy core — grows brighter / larger with shards
+    let coreAlpha=.55+.3*shimmer+.25*bifProgress;
+    let coreSize=1+.4*bifRepairs;
+    ctx.fillStyle=`rgba(220,210,255,${Math.min(1,coreAlpha)})`;
+    ctx.beginPath();ctx.ellipse(sx,sy-8,(4+coreSize)*shimmer+1,(7+coreSize*1.4)*shimmer+2,0,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='rgba(255,255,255,.35)';
-    ctx.beginPath();ctx.ellipse(sx,sy-9,2,3,0,0,Math.PI*2);ctx.fill();
-    // Thin lightning crack across pillars
-    ctx.strokeStyle=`rgba(190,160,255,${.45*shimmer})`;
+    ctx.beginPath();ctx.ellipse(sx,sy-9,2+coreSize*.5,3+coreSize*.7,0,0,Math.PI*2);ctx.fill();
+    // Thin lightning crack — fades as bridge stabilizes
+    ctx.strokeStyle=`rgba(190,160,255,${(.45*shimmer)*(1-bifProgress*.7)})`;
     ctx.lineWidth=1.4;
     ctx.beginPath();
     ctx.moveTo(sx-11,sy-22);ctx.lineTo(sx-3,sy-12);ctx.lineTo(sx+5,sy-18);ctx.lineTo(sx+11,sy-10);
     ctx.stroke();
-    // Two big atmospheric glows
-    drawGlow(sx,sy-2,32,'rgb(159,140,255)',.16*shimmer);
-    drawGlow(sx,sy-22,28,'rgb(122,184,255)',.13*shimmer);
-    // Brazier offerings at base
+    // Atmospheric glows scale with progress
+    drawGlow(sx,sy-2,32,'rgb(159,140,255)',(.16+.18*bifProgress)*shimmer);
+    drawGlow(sx,sy-22,28,'rgb(122,184,255)',(.13+.16*bifProgress)*shimmer);
+    // Three shard slot indicators inset into the foundation (visual record of which shards collected)
+    let slotDefs=[
+      {id:'barrow',x:sx-14,col:'rgb(159,140,255)'},
+      {id:'ember',x:sx,col:'rgb(255,140,80)'},
+      {id:'seer',x:sx+14,col:'rgb(122,184,255)'}
+    ];
+    slotDefs.forEach(s=>{
+      let lit=!!bifState[s.id];
+      // Slot socket
+      ctx.fillStyle='#1a1626';
+      ctx.fillRect(s.x-3,sy+11,6,4);
+      ctx.fillStyle='#0d0a16';
+      ctx.fillRect(s.x-2,sy+12,4,2);
+      if(lit){
+        // Embedded shard
+        ctx.fillStyle=s.col;
+        ctx.fillRect(s.x-2,sy+12,4,2);
+        ctx.fillStyle='rgba(255,255,255,.55)';
+        ctx.fillRect(s.x-1,sy+12,1,1);
+        drawGlow(s.x,sy+13,7,s.col,.3*shimmer);
+      }
+    });
+    // Brazier offerings at base — flames grow with progress
+    let flameH=1+bifRepairs;
     ctx.fillStyle='#3a342d';
     ctx.fillRect(sx-22,sy+4,5,5);
-    ctx.fillStyle='rgba(255,180,90,.7)';
-    ctx.fillRect(sx-21,sy+5,3,1);
+    ctx.fillStyle=`rgba(255,${180+20*bifProgress},90,${.7+.2*bifProgress})`;
+    ctx.fillRect(sx-21,sy+5-flameH+1,3,flameH);
     ctx.fillStyle='#3a342d';
     ctx.fillRect(sx+17,sy+4,5,5);
-    ctx.fillStyle='rgba(255,180,90,.7)';
-    ctx.fillRect(sx+18,sy+5,3,1);
+    ctx.fillStyle=`rgba(255,${180+20*bifProgress},90,${.7+.2*bifProgress})`;
+    ctx.fillRect(sx+18,sy+5-flameH+1,3,flameH);
   }else if(site.kind==='grove'){
     drawShadow(sx,sy+18,30,8,.22);
     // Trunk cluster
@@ -7711,7 +8104,7 @@ function interactWorldLandmark(site){
     }
     showDungeonEntryChoice();
   }else if(site.kind==='hall'){
-    let tithe=Math.max(1,Math.ceil(P.gold*0.2));
+    let tithe=Math.max(1,Math.ceil(P.gold*0.2*templeTitheMult()));
     if(P._warHallUsed){msg('Ravenwatch already provisioned your next descent.',1800);return;}
     if(P.gold<=0){msg('The quartermaster asks for 20% of your gold for provisions.',1800);return;}
     P.gold-=tithe;P._warHallUsed=true;
@@ -7746,7 +8139,7 @@ function interactWorldLandmark(site){
   }else if(site.kind==='council'){
     openMidgardCouncil();
   }else if(site.kind==='sanctum'){
-    let tithe=Math.max(1,Math.ceil(P.gold*0.15));
+    let tithe=Math.max(1,Math.ceil(P.gold*0.15*templeTitheMult()));
     if(P._echoBlessingUsed){msg('The Hall of Echoes has already answered you for this descent.',1800);return;}
     if(P.gold<=0){msg('The bell-keeper asks for 15% of your gold to consecrate your path.',1800);return;}
     clearEchoBlessing();
@@ -8081,7 +8474,7 @@ function getCurrentRoom(){let ptx=Math.floor(dPlayer.x/DTILE),pty=Math.floor(dPl
 function collectChest(chest){
   if(chest.opened)return;chest.opened=true;dmap[chest.y][chest.x]=DT.FLOOR;
   chest.items.forEach(item=>{
-if(item.isGold){let g=item.val*(dungeonHasMod('Blessed')?2:1);P.gold+=g;floatText('+'+g+'g',dPlayer.x,dPlayer.y-20,'#ffd700');}
+if(item.isGold){let g=Math.max(1,Math.floor(item.val*(dungeonHasMod('Blessed')?2:1)*midgardGoldMult()));P.gold+=g;floatText('+'+g+'g',dPlayer.x,dPlayer.y-20,'#ffd700');}
     else if(addItemToInventory({...item})){}
     else loot.push({...item,x:dPlayer.x+Math.random()*60-30,y:dPlayer.y+Math.random()*60-30,id:Math.random(),isDungeon:true,pickupCooldown:2000});
   });
@@ -8466,9 +8859,34 @@ function movePlayer(dx,dy,sp,dt,isDungeon){
   }
 }
 
+function updateNPCs(dt){
+  if(inDungeon)return;
+  for(let i=0;i<npcList.length;i++){
+    let n=npcList[i];
+    if(n._hx==null){n._hx=n.wx;n._hy=n.wy;n._tx=0;n._ty=0;n._wanderT=600+Math.random()*2400;}
+    n._wanderT-=dt;
+    if(n._wanderT<=0){
+      let r=18+Math.random()*22;
+      let a=Math.random()*Math.PI*2;
+      n._tx=Math.cos(a)*r;
+      n._ty=Math.sin(a)*r*.6;
+      n._wanderT=2400+Math.random()*3500;
+    }
+    let targetWx=n._hx+n._tx,targetWy=n._hy+n._ty;
+    let easing=.018*(dt/16);
+    let prevX=n.wx,prevY=n.wy;
+    n.wx+=(targetWx-n.wx)*easing;
+    n.wy+=(targetWy-n.wy)*easing;
+    let movedX=n.wx-prevX,movedY=n.wy-prevY;
+    let movedLen=Math.hypot(movedX,movedY);
+    if(movedLen>.18){n.moveX=movedX>0?1:-1;n.moveY=movedY>0?1:-1;}
+    else{n.moveX=0;n.moveY=0;}
+  }
+}
 function updateWorldMode(dt){
   if(worldEntryPromptCooldown>0)worldEntryPromptCooldown=Math.max(0,worldEntryPromptCooldown-dt);
   updateAmbientWorld(dt);
+  updateNPCs(dt);
   if(panel)return;
   let dx=0,dy=0;
   if(keys['w']||keys['ArrowUp'])dy=-1;if(keys['s']||keys['ArrowDown'])dy=1;
@@ -8608,7 +9026,7 @@ function pickupLoot(isDungeon){
     let l=loot[i];
     if(l.isDungeon!==isDungeon||(l.pickupCooldown||0)>0)continue;
     if(Math.hypot(l.x-px,l.y-py)<22){
-      if(l.isGold){P.gold+=l.val;playSfx('pickupGold',Math.min(1.2,.75+l.val/140));floatText('+'+l.val+'g',l.x,l.y,'#ffd700');}
+      if(l.isGold){let g=Math.max(1,Math.floor(l.val*midgardGoldMult()));P.gold+=g;playSfx('pickupGold',Math.min(1.2,.75+l.val/140));floatText('+'+g+'g',l.x,l.y,'#ffd700');}
       else if(addItemToInventory({...l,x:undefined,y:undefined,id:undefined,isDungeon:undefined,pickupCooldown:undefined})){playSfx('pickupItem',l.rarity==='legendary'?1.2:l.rarity==='epic'?1.08:1);msg('ðŸŽ’ Picked up: '+l.icon+' '+l.name);}
       else{msg('Inventory full! [I] to manage',1000);continue;}
       loot.splice(i,1);
@@ -8627,7 +9045,7 @@ function updateEnemies(dt){
     if(e.hp<=0){
       spawnKillEffect(e,inDungeon);
       dropEnemyLoot(e);
-      gainXP(e.xp);P.gold+=Math.max(1,Math.floor(e.gold*directGoldFactor(e)*(dungeonHasMod('Blessed')?2:1)*(dungeonHasMod('Fortune-Touched')?1.12:1)));
+      gainXP(e.xp);P.gold+=Math.max(1,Math.floor(e.gold*directGoldFactor(e)*(dungeonHasMod('Blessed')?2:1)*(dungeonHasMod('Fortune-Touched')?1.12:1)*midgardGoldMult()));
       if(e.landmarkSiteId){
         let site=worldLandmarks.find(s=>s.id===e.landmarkSiteId);
         if(site&&site.pending){
@@ -8644,7 +9062,7 @@ function updateEnemies(dt){
       if(e.isMiniBoss){
         let miniReward=rollLootItem(dungeonFloor+2,P.level);
         if(!addItemToInventory(miniReward))loot.push({...miniReward,x:e.x+10,y:e.y,id:Math.random(),isDungeon:true,pickupCooldown:800});
-        P.gold+=scaledGoldValue(22+dungeonFloor*6,dungeonFloor);playSfx('bossDeath',.9);
+        P.gold+=Math.max(1,Math.floor(scaledGoldValue(22+dungeonFloor*6,dungeonFloor)*midgardGoldMult()));playSfx('bossDeath',.9);
         msg('CHAMPION SLAIN! A richer prize drops from the chamber.',2600);
       }
       if(e===bossRef){
@@ -9014,6 +9432,49 @@ function drawTile(tx,ty,sx,sy){
         ctx.fillRect(sx+leftInset+4,sy+topInset+18,Math.max(10,T-leftInset-rightInset-8),2);
       }
       if(site?.kind==='council'&&dist<6){ctx.fillStyle='rgba(215,177,92,.07)';ctx.fillRect(sx+6,sy+6,DTILE-12,2);}
+      // Path decals (wagon ruts + footprints) on connected stone roads near the village
+      let isRoadTile=site?.kind==='village'&&dist<11&&!villagePlaza&&(north===true||south===true||west===true||east===true);
+      if(isRoadTile){
+        let decalN=tileNoise(tx*1.3+19,ty*.9+47);
+        let runsHorizontal=(west===true||east===true)&&!(north===true&&south===true);
+        let runsVertical=(north===true||south===true)&&!(west===true&&east===true);
+        // Wagon-wheel ruts: ~12% of road tiles, two parallel curves
+        if(decalN>.88){
+          ctx.strokeStyle='rgba(60,46,30,.22)';
+          ctx.lineWidth=1.2;
+          if(runsHorizontal||(!runsVertical&&decalN>.94)){
+            ctx.beginPath();
+            ctx.moveTo(sx+leftInset+2,sy+topInset+11);
+            ctx.bezierCurveTo(sx+T*.35,sy+topInset+9,sx+T*.65,sy+topInset+13,sx+T-rightInset-2,sy+topInset+12);
+            ctx.moveTo(sx+leftInset+2,sy+T-bottomInset-9);
+            ctx.bezierCurveTo(sx+T*.35,sy+T-bottomInset-11,sx+T*.65,sy+T-bottomInset-7,sx+T-rightInset-2,sy+T-bottomInset-9);
+            ctx.stroke();
+          }else if(runsVertical){
+            ctx.beginPath();
+            ctx.moveTo(sx+leftInset+11,sy+topInset+2);
+            ctx.bezierCurveTo(sx+leftInset+9,sy+T*.35,sx+leftInset+13,sy+T*.65,sx+leftInset+12,sy+T-bottomInset-2);
+            ctx.moveTo(sx+T-rightInset-9,sy+topInset+2);
+            ctx.bezierCurveTo(sx+T-rightInset-11,sy+T*.35,sx+T-rightInset-7,sy+T*.65,sx+T-rightInset-9,sy+T-bottomInset-2);
+            ctx.stroke();
+          }
+        }
+        // Footprints: ~8% of road tiles, paired dots
+        let footN=tileNoise(tx*.7+91,ty*1.1+13);
+        if(footN>.92){
+          ctx.fillStyle='rgba(40,28,18,.32)';
+          let fSx=sx+leftInset+6+Math.floor(footN*8);
+          let fSy=sy+topInset+8+Math.floor(footN*10);
+          ctx.beginPath();ctx.ellipse(fSx,fSy,1.4,2,0,0,Math.PI*2);ctx.fill();
+          ctx.beginPath();ctx.ellipse(fSx+5,fSy+5,1.4,2,0,0,Math.PI*2);ctx.fill();
+          ctx.beginPath();ctx.ellipse(fSx+10,fSy+1,1.4,2,0,0,Math.PI*2);ctx.fill();
+          ctx.beginPath();ctx.ellipse(fSx+15,fSy+6,1.4,2,0,0,Math.PI*2);ctx.fill();
+        }
+        // Worn-stone scuff (lighter polished area, ~25%)
+        if(decalN>.65&&decalN<.85){
+          ctx.fillStyle='rgba(255,245,228,.05)';
+          ctx.beginPath();ctx.ellipse(sx+T/2,sy+T/2+2,T*.32,T*.18,0,0,Math.PI*2);ctx.fill();
+        }
+      }
       break;}
     case TILE.WATER:{
       let bank=5;
@@ -10037,6 +10498,23 @@ function drawParticles(){
       ctx.beginPath();
       ctx.arc(sx,sy,p.sz*(1.2-p.life*.2),0,Math.PI*2);
       ctx.fill();
+    }else if(p.style==='rain'){
+      // Slanted rain streak (motion blur)
+      ctx.strokeStyle=p.col;
+      ctx.lineWidth=p.sz;
+      ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(sx,sy);
+      ctx.lineTo(sx-p.vx*1.3,sy-p.vy*1.3);
+      ctx.stroke();
+    }else if(p.style==='snow'){
+      // Soft snowflake — small white circle with bright core
+      ctx.fillStyle=p.col;
+      ctx.beginPath();
+      ctx.arc(sx,sy,p.sz,0,Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.9)';
+      ctx.fillRect(sx-.5,sy-.5,1,1);
     }else{
       ctx.fillStyle=p.col;
       ctx.beginPath();
