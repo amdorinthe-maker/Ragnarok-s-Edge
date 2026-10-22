@@ -3,6 +3,14 @@
  * Handles loading of all game assets (sprites, audio, etc.)
  */
 
+const CHARACTER_SPRITE_SOURCE_OVERRIDES = {
+    ranger: 'assets/characters_prepared/ranger/'
+};
+
+function getCharacterSpriteBasePath(paths, cls) {
+    return CHARACTER_SPRITE_SOURCE_OVERRIDES[cls] || `${paths.characters}${cls}/`;
+}
+
 const AssetLoader = {
     images: {},
     animations: {},  // Store animation sequences
@@ -189,9 +197,10 @@ const AssetLoader = {
         const assets = [];
 
         classes.forEach(cls => {
+            const charBasePath = getCharacterSpriteBasePath(this.paths, cls);
             // Use the first idle frame as the static body fallback.
             const bodyKey = `${cls}_body`;
-            const bodySrc = `${this.paths.characters}${cls}/idle_01.png`;
+            const bodySrc = `${charBasePath}idle_01.png`;
             assets.push({ type: 'image', key: bodyKey, src: bodySrc });
 
             // Optional body-only class model poses for cleaner gear layering.
@@ -534,6 +543,7 @@ const AssetLoader = {
         const attackVariants = ['melee', 'ranged', 'magic', 'shield'];
         
         for (const cls of classes) {
+            const charBasePath = getCharacterSpriteBasePath(this.paths, cls);
             for (const state of states) {
                 let patterns = [];
                 let frameEnd = 4;
@@ -545,15 +555,15 @@ const AssetLoader = {
                         guardian: 'attack_shield'
                     };
                     patterns = [
-                        `assets/characters/${cls}/${attackMap[cls]}_{frame}.png`,
-                        `assets/characters/${cls}/attack_{frame}.png`,
-                        `assets/characters/${cls}/${cls}_attack_{frame}.svg`
+                        `${charBasePath}${attackMap[cls]}_{frame}.png`,
+                        `${charBasePath}attack_{frame}.png`,
+                        `${charBasePath}${cls}_attack_{frame}.svg`
                     ];
                     frameEnd = 5;
                 } else {
                     patterns = [
-                        `assets/characters/${cls}/${state}_{frame}.png`,
-                        `assets/characters/${cls}/${cls}_${state}_{frame}.svg`
+                        `${charBasePath}${state}_{frame}.png`,
+                        `${charBasePath}${cls}_${state}_{frame}.svg`
                     ];
                 }
                 await this.loadAnimationSequenceCandidates(`${cls}_${state}`, patterns, 1, frameEnd);
@@ -561,8 +571,8 @@ const AssetLoader = {
 
             for (const variant of attackVariants) {
                 const variantPatterns = [
-                    `assets/characters/${cls}/attack_${variant}_{frame}.png`,
-                    `assets/characters/${cls}/${cls}_attack_${variant}_{frame}.svg`
+                    `${charBasePath}attack_${variant}_{frame}.png`,
+                    `${charBasePath}${cls}_attack_${variant}_{frame}.svg`
                 ];
                 await this.loadAnimationSequenceCandidates(`${cls}_attack_${variant}`, variantPatterns, 1, 5);
             }

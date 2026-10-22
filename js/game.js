@@ -4783,7 +4783,7 @@ function getPlayerProjectileOrigin(ws=null){
   let px = inDungeon ? dPlayer.x : P.x;
   let py = inDungeon ? dPlayer.y : P.y;
   if (ws.id === 'bow') {
-    let bowPose = getBowPose(P.classId, P.equip.weapon, px, py);
+    let bowPose = getBowPose(P.classId, P.equip.weapon, px, py, false);
     let muzzle = bowPose.weaponSize * 0.34;
     return {
       x: bowPose.handX + Math.cos(bowPose.finalRot) * muzzle,
@@ -5551,7 +5551,7 @@ function getWeaponRenderProfile(assetKey,ws=getWeaponStyle(),classId=P.classId){
     holdLift: (merged.holdLift||6)*scale
   };
 }
-function getBowPose(classId=P.classId, weaponItem=P.equip.weapon, sx=null, sy=null){
+function getBowPose(classId=P.classId, weaponItem=P.equip.weapon, sx=null, sy=null, useBodyMetrics=true){
   let ws = getWeaponStyle(weaponItem);
   let weaponKey = getHeldWeaponAssetKey(weaponItem, ws);
   let profile = getWeaponRenderProfile(weaponKey, ws, classId);
@@ -5567,6 +5567,15 @@ function getBowPose(classId=P.classId, weaponItem=P.equip.weapon, sx=null, sy=nu
   let py = sy ?? (inDungeon ? dPlayer.y : P.y);
   let handX = px + Math.cos(ang) * armReach;
   let handY = py + Math.sin(ang) * armReach - holdLift;
+  let bodyMetrics = useBodyMetrics ? (drawPlayerSprite._lastBodyMetrics || null) : null;
+  if(bodyMetrics && classId === 'ranger'){
+    let side = fx >= 0 ? 1 : -1;
+    let shoulderX = px + side * Math.min(12, bodyMetrics.width * 0.12);
+    let shoulderY = bodyMetrics.top + bodyMetrics.height * 0.54;
+    let rangerLift = holdLift * 0.38;
+    handX = shoulderX + Math.cos(ang) * armReach;
+    handY = shoulderY + Math.sin(ang) * armReach - rangerLift;
+  }
   let assetRot = (profile.assetRot || 0) * Math.abs(fy);
   let finalRot = ang + assetRot;
   let weaponSize = profile.size;
